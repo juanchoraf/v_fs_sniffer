@@ -76,8 +76,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zip
 
-      - name: Build artifacts
-        shell: ${{ matrix.shell }}
+      - name: Build artifacts on Unix
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: ${{ matrix.command }}
+
+      - name: Build artifacts on Windows
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
         run: ${{ matrix.command }}
 
       - name: Upload build artifacts
