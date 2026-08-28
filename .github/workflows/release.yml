@@ -132,11 +132,26 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets-flat
+          find release-assets -type f -name 'v_fs_sniffer_v*' -exec cp -f {} release-assets-flat/ \;
+
+          asset_count=$(find release-assets-flat -maxdepth 1 -type f | wc -l)
+          if [ "$asset_count" -eq 0 ]; then
+            echo "No release assets found under release-assets" >&2
+            find release-assets -maxdepth 4 -print >&2
+            exit 1
+          fi
+
+          find release-assets-flat -maxdepth 1 -type f -printf '%f\n' | sort
+
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
           name: v_fs_sniffer ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
           generate_release_notes: true
-          files: release-assets/*
+          files: release-assets-flat/*
           fail_on_unmatched_files: true
