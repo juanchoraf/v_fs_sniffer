@@ -67,7 +67,6 @@ const INTERACTIVE_COMMANDS: &[&str] = &[
     "--case-sensitive",
     "-cs",
     "--no-follow-symlinks",
-    "--follow-symlinks",
     "--output",
     "-o",
     "--output-format",

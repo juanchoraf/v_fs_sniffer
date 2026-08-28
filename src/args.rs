@@ -174,7 +174,6 @@ where
             "-nr" | "--no-recursive" => builder.recursive = false,
             "-cs" | "--case-sensitive" => builder.case_sensitive = true,
             "--no-follow-symlinks" => builder.follow_symlinks = false,
-            "--follow-symlinks" => builder.follow_symlinks = true,
             "--lines" => set_lines(
                 &mut builder,
                 parse_line_range(&next_value(&mut args, &arg)?)?,
@@ -242,7 +241,6 @@ where
                         }
                         "--lines" => set_lines(&mut builder, parse_line_range(value)?)?,
                         "--no-follow-symlinks" => builder.follow_symlinks = false,
-                        "--follow-symlinks" => builder.follow_symlinks = true,
                         "--exclude-dir" | "-ed" | "-ex" => {
                             builder.exclude_dirs.push(value.to_owned());
                         }
@@ -693,6 +691,13 @@ mod tests {
         };
 
         assert!(!cli.follow_symlinks);
+    }
+
+    #[test]
+    fn follow_symlinks_has_no_public_flag_because_it_is_the_default() {
+        let err = parse(["v_fs_sniffer", "--str", "needle", ".", "--follow-symlinks"]).unwrap_err();
+
+        assert_eq!(err.to_string(), "unknown option '--follow-symlinks'");
     }
 
     #[test]

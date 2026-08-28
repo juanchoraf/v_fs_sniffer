@@ -15,10 +15,6 @@ Made with AI (Codex) 🤖
 | macOS     |   ✅    |
 | Unix      |   ✅    |
 
-## Minimum Supported Rust Version
-
-This crate requires Rust 1.94.1 or later.
-
 ## Features
 
 | Feature |
@@ -32,7 +28,6 @@ This crate requires Rust 1.94.1 or later.
 | Follows symlinked files and directories by default
 | Can disable recursion with `--no-recursive`
 | Can disable symlink following with `--no-follow-symlinks`
-| Can explicitly re-enable symlink following with `--follow-symlinks`
 | Can switch matching to case-sensitive with `--case-sensitive`
 | Renames matching files without overwriting existing paths
 | Renames matching directories recursively without overwriting existing paths
@@ -104,6 +99,7 @@ v_fs_sniffer --update
 
 ## Requirements
 
+- This crate requires Rust 1.94.1 or later.
 - Rust stable toolchain with Cargo for source builds
 - PowerShell on Windows
 - Administrator rights for system-wide Windows installation
@@ -322,7 +318,6 @@ Matching is case-insensitive and recursive by default. Symlink targets are follo
 | `-nr`, `--no-recursive` | Search only the root's direct children. |
 | `-cs`, `--case-sensitive` | Match case sensitively. |
 | `--no-follow-symlinks` | Inspect symlinks without following their targets. |
-| `--follow-symlinks` | Follow symlink targets explicitly. This is the default behavior. |
 | `--lines <start:end>` | Read a line range from `--file <path>` without a search root. |
 | `--replace-with <text>` | Replace file, directory, or literal string matches. |
 | `-o`, `--output`, `--export <file>` | Export findings. |
