@@ -12,6 +12,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: write
 
 env:
@@ -22,6 +23,7 @@ jobs:
   build:
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -53,6 +55,7 @@ jobs:
 
       - name: Install Rust
         shell: bash
+        timeout-minutes: 10
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
@@ -72,6 +75,7 @@ jobs:
       - name: Install Linux package tools
         if: startsWith(matrix.runner, 'ubuntu-')
         shell: bash
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y zip
@@ -79,15 +83,37 @@ jobs:
       - name: Build artifacts on Unix
         if: matrix.shell == 'bash'
         shell: bash
+        timeout-minutes: 30
         run: ${{ matrix.command }}
+
+      - name: Prepare Windows code signing certificate
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        timeout-minutes: 2
+        env:
+          V_FS_SNIFFER_CODESIGN_PFX_BASE64: ${{ secrets.V_FS_SNIFFER_CODESIGN_PFX_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:V_FS_SNIFFER_CODESIGN_PFX_BASE64)) {
+            Write-Host "No Windows code signing PFX secret configured."
+            exit 0
+          }
+
+          $certPath = Join-Path $env:RUNNER_TEMP "v_fs_sniffer_codesign.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:V_FS_SNIFFER_CODESIGN_PFX_BASE64))
+          "V_FS_SNIFFER_CODESIGN_PFX=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build artifacts on Windows
         if: matrix.shell == 'pwsh'
         shell: pwsh
+        timeout-minutes: 30
+        env:
+          V_FS_SNIFFER_CODESIGN_PASSWORD: ${{ secrets.V_FS_SNIFFER_CODESIGN_PASSWORD }}
+          V_FS_SNIFFER_CODESIGN_THUMBPRINT: ${{ secrets.V_FS_SNIFFER_CODESIGN_THUMBPRINT }}
+          V_FS_SNIFFER_CODESIGN_TIMESTAMP_URL: ${{ secrets.V_FS_SNIFFER_CODESIGN_TIMESTAMP_URL }}
         run: ${{ matrix.command }}
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: v_fs_sniffer-${{ matrix.name }}
           path: versions/v_fs_sniffer_v*/v_fs_sniffer_v*
@@ -97,10 +123,11 @@ jobs:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           merge-multiple: true
