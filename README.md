@@ -8,12 +8,12 @@ Made with AI (Codex) 🤖
 
 ## Supported OS
 
-| Platform           |
-| ------------------ |
-| Linux              |
-| Windows            |
-| macOS              |
-| Unix               |
+| Platform  | Support |
+| --------- |:-------:|
+| Linux     |   ✅    |
+| Windows   |   ✅    |
+| macOS     |   ✅    |
+| Unix      |   ✅    |
 
 ## Minimum Supported Rust Version
 
@@ -21,47 +21,49 @@ This crate requires Rust 1.94.1 or later.
 
 ## Features
 
-- Finds files by name with case-insensitive matching by default
-- Finds directories by name with recursive traversal
-- Searches literal text inside files
-- Searches file contents with the built-in regex engine
-- Reads an exact line or inclusive line range from one file with `--file <path> --lines <start:end>`
-- Recurses through hidden entries such as `.git` and `.htaccess`
-- Follows symlinked files and directories by default
-- Can disable recursion with `--no-recursive`
-- Can disable symlink following with `--no-follow-symlinks`
-- Can explicitly re-enable symlink following with `--follow-symlinks`
-- Can switch matching to case-sensitive with `--case-sensitive`
-- Renames matching files without overwriting existing paths
-- Renames matching directories recursively without overwriting existing paths
-- Replaces literal text in UTF-8 files
-- Skips non-UTF-8 files safely during text replacement and reports warnings
-- Excludes directory subtrees by path or name
-- Excludes files by path or name
-- Excludes file extensions from content scans
-- Excludes content lines containing specific text
-- Excludes paths or content lines with regex rules
-- Prints aligned text tables with match metadata
-- Prints structured JSON output
-- Auto-selects JSON output for `.json` export files
-- Exports reports to a file
-- Supports quiet mode for file-only output workflows
-- Prints warnings to stderr and findings to stdout
-- Shows one updating progress line during scans
-- Highlights interactive results, summaries, progress, prompts, and errors with terminal colors
-- Displays errors in red with padded output
-- Opens an interactive terminal when run without arguments
-- Shows a cyan/yellow search funnel and large blue ASCII app name in interactive mode
-- Uses a cyan `v_fs_sniffer>` prompt while keeping typed commands white
-- Supports interactive command history
-- Supports Tab completion for commands
-- Supports Tab completion for filesystem paths, including paths with spaces
-- Supports `help`, `clear`, `version`, `check-update`, `update`, `exit`, and `quit` inside the interactive terminal
-- Checks for published updates with `--check-update`
-- Downloads, verifies, and installs matching published updates with `--update`
-- Supports per-user Cargo uninstall with `--uninstall`
-- Builds portable archives and installers for 64-bit systems
-- Supports Windows, Linux, macOS, BSD, illumos/Solaris, and other Unix-like systems
+| Feature |
+|---------|
+| Finds files by name with case-insensitive matching by default
+| Finds directories by name with recursive traversal
+| Searches literal text inside files
+| Searches file contents with the built-in regex engine
+| Reads an exact line or inclusive line range from one file with `--file <path> --lines <start:end>`
+| Recurses through hidden entries such as `.git` and `.htaccess`
+| Follows symlinked files and directories by default
+| Can disable recursion with `--no-recursive`
+| Can disable symlink following with `--no-follow-symlinks`
+| Can explicitly re-enable symlink following with `--follow-symlinks`
+| Can switch matching to case-sensitive with `--case-sensitive`
+| Renames matching files without overwriting existing paths
+| Renames matching directories recursively without overwriting existing paths
+| Replaces literal text in UTF-8 files
+| Skips non-UTF-8 files safely during text replacement and reports warnings
+| Excludes directory subtrees by path or name
+| Excludes files by path or name
+| Excludes file extensions from content scans
+| Excludes content lines containing specific text
+| Excludes paths or content lines with regex rules
+| Prints aligned text tables with match metadata
+| Prints structured JSON output
+| Auto-selects JSON output for `.json` export files
+| Exports reports to a file
+| Supports quiet mode for file-only output workflows
+| Prints warnings to stderr and findings to stdout
+| Shows one updating progress line during scans
+| Highlights interactive results, summaries, progress, prompts, and errors with terminal colors
+| Displays errors in red with padded output
+| Opens an interactive terminal when run without arguments
+| Shows a cyan/yellow search funnel and large blue ASCII app name in interactive mode
+| Uses a cyan `v_fs_sniffer>` prompt while keeping typed commands white
+| Supports interactive command history
+| Supports Tab completion for commands
+| Supports Tab completion for filesystem paths, including paths with spaces
+| Supports `help`, `clear`, `version`, `check-update`, `update`, `exit`, and `quit` inside the interactive terminal
+| Checks for published updates with `--check-update`
+| Downloads, verifies, and installs matching published updates with `--update`
+| Supports per-user Cargo uninstall with `--uninstall`
+| Builds portable archives and installers for 64-bit systems
+| Supports Windows, Linux, macOS, BSD, illumos/Solaris, and other Unix-like systems
 
 ## Quick Start
 
