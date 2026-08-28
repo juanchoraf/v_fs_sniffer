@@ -1,5 +1,10 @@
 # v_fs_sniffer
 
+[![Release_Badge]][Release_Url]
+[![Build_Badge]][Build_Url]
+[![Dependencies_Badge]][Dependencies_Url]
+[![License_Badge]][LICENSE-MIT]
+
 `v_fs_sniffer` is a fast Rust CLI for filesystem search and cleanup. It finds files, directories, text, regex matches, hidden entries, and exact line ranges; can rename entries, replace UTF-8 text, exclude noisy paths, export text/JSON reports, and install published updates.
 
 Run one-shot commands or open its interactive terminal with history and Tab completion.
@@ -441,13 +446,13 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [//]: # (badges)
 
-[GitHub Actions]: https://github.com/juanchoraf/v_fs_sniffer/actions?query=branch:main
-[Build Status]: https://github.com/juanchoraf/v_fs_sniffer/actions/workflows/rust.yml/badge.svg?branch=main
-[docs.rs]: https://docs.rs/v_fs_sniffer
-[Documentation]: https://docs.rs/v_fs_sniffer/badge.svg
-[deps.rs]: https://deps.rs/repo/github/juanchoraf/v_fs_sniffer
-[Dependency Status]: https://deps.rs/repo/github/juanchoraf/v_fs_sniffer/status.svg
-[License]: https://img.shields.io/crates/l/v_fs_sniffer
+[Release_Badge]: https://github.com/juanchoraf/v_fs_sniffer/actions/workflows/release.yml/badge.svg
+[Release_Url]: https://github.com/juanchoraf/v_fs_sniffer/actions/workflows/release.yml
+[Build_Badge]: https://github.com/juanchoraf/v_fs_sniffer/actions/workflows/rust.yml/badge.svg?branch=main
+[Build_Url]: https://github.com/juanchoraf/v_fs_sniffer/actions?query=branch:main
+[Dependencies_Badge]: https://deps.rs/repo/github/juanchoraf/v_fs_sniffer/status.svg
+[Dependencies_Url]: https://deps.rs/repo/github/juanchoraf/v_fs_sniffer
+[License_Badge]: https://img.shields.io/crates/l/v_fs_sniffer
 
 [//]: # (licenses)
 
