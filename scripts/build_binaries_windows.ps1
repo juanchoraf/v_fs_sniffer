@@ -30,6 +30,7 @@ $RustTarget = "x86_64-pc-windows-msvc"
 $WixBootstrapperExtension = "WixToolset.BootstrapperApplications.wixext"
 $NeedsReboot = $false
 $UsingGeneratedCodeSigningCertificate = $false
+$RunningInGitHubActions = $env:GITHUB_ACTIONS -eq "true"
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 function Set-BuildPrivacy {
@@ -73,6 +74,16 @@ if (-not $NoWixEula) {
 
 Write-Host ""
 
+$HasConfiguredCodeSigningCertificate = (
+    -not [string]::IsNullOrWhiteSpace($CodeSigningCertThumbprint) -or
+    -not [string]::IsNullOrWhiteSpace($CodeSigningCertPath)
+)
+if ($RunningInGitHubActions -and -not $HasConfiguredCodeSigningCertificate -and -not $SkipCodeSigning -and -not $NoGenerateCodeSigningCertificate) {
+    Write-Warning "GitHub Actions has no V_FS_SNIFFER_CODESIGN_* certificate configured. Building unsigned Windows artifacts instead of creating a local self-signed certificate on the runner."
+    $SkipCodeSigning = $true
+    $CodeSigningTimestampUrl = ""
+}
+
 function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -83,7 +94,8 @@ function Invoke-CheckedProcess {
     param(
         [string]$FilePath,
         [string[]]$ArgumentList,
-        [string]$Description
+        [string]$Description,
+        [int]$TimeoutMinutes = 45
     )
 
     Write-Host $Description
@@ -95,7 +107,21 @@ function Invoke-CheckedProcess {
             $_
         }
     })
-    $process = Start-Process -FilePath $FilePath -ArgumentList ($quotedArguments -join ' ') -Wait -PassThru
+    $process = Start-Process -FilePath $FilePath -ArgumentList ($quotedArguments -join ' ') -PassThru
+    $timeoutMilliseconds = [Math]::Max(1, $TimeoutMinutes) * 60 * 1000
+    if (-not $process.WaitForExit($timeoutMilliseconds)) {
+        try {
+            $process.Kill($true)
+        }
+        catch {
+            try {
+                $process.Kill()
+            }
+            catch {
+            }
+        }
+        throw "$Description timed out after $TimeoutMinutes minute(s)."
+    }
     if ($process.ExitCode -eq 3010) {
         $script:NeedsReboot = $true
         Write-Warning "$Description completed, but Windows reports a reboot is required."
@@ -279,7 +305,12 @@ function Get-OrCreateGeneratedCodeSigningCertificate {
     }
 
     Export-GeneratedCodeSigningCertificateFiles -Certificate $certificate
-    Import-GeneratedCodeSigningCertificateTrust -Certificate $certificate
+    if ($RunningInGitHubActions) {
+        Write-Warning "Skipping generated certificate trust import in GitHub Actions. Use a real CI signing certificate for public trusted Windows releases."
+    }
+    else {
+        Import-GeneratedCodeSigningCertificateTrust -Certificate $certificate
+    }
     $script:UsingGeneratedCodeSigningCertificate = $true
     Write-Warning "The generated certificate is trusted only on machines where its .cer is explicitly installed. Use a CA-issued or Microsoft Trusted Signing certificate for public releases."
     return $certificate
@@ -316,6 +347,10 @@ function Resolve-CodeSigningCertificate {
 
     if (-not [string]::IsNullOrWhiteSpace($CodeSigningCertPath)) {
         $resolvedPath = (Resolve-Path $CodeSigningCertPath).Path
+        if ($RunningInGitHubActions -and [string]::IsNullOrEmpty($CodeSigningCertPassword)) {
+            throw "V_FS_SNIFFER_CODESIGN_PASSWORD is required when a PFX certificate is configured in GitHub Actions."
+        }
+
         if ([string]::IsNullOrEmpty($CodeSigningCertPassword)) {
             $certificate = Get-PfxCertificate -FilePath $resolvedPath
         }
@@ -366,7 +401,7 @@ function Invoke-CodeSignFile {
         Certificate = $Certificate
         HashAlgorithm = "SHA256"
     }
-    if (-not [string]::IsNullOrWhiteSpace($CodeSigningTimestampUrl)) {
+    if (-not $script:UsingGeneratedCodeSigningCertificate -and -not [string]::IsNullOrWhiteSpace($CodeSigningTimestampUrl)) {
         $signArgs["TimestampServer"] = $CodeSigningTimestampUrl
     }
 
