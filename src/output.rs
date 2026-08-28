@@ -214,6 +214,18 @@ fn render_json(report: &SearchReport) -> String {
         "  \"root\": \"{}\",\n",
         json_escape(&report.root.display().to_string())
     ));
+    out.push_str("  \"roots\": [\n");
+    for (index, root) in report.roots.iter().enumerate() {
+        out.push_str(&format!(
+            "    \"{}\"",
+            json_escape(&root.display().to_string())
+        ));
+        if index + 1 != report.roots.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  ],\n");
     out.push_str(&format!("  \"mode\": \"{}\",\n", kind_name(report.mode)));
     out.push_str(&format!(
         "  \"case_sensitive\": {},\n  \"recursive\": {},\n",

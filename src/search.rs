@@ -54,6 +54,7 @@ pub struct SearchWarning {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchReport {
     pub root: PathBuf,
+    pub roots: Vec<PathBuf>,
     pub mode: FindingKind,
     pub case_sensitive: bool,
     pub recursive: bool,
@@ -112,13 +113,33 @@ pub fn search_with_progress(
     cli: &Cli,
     progress: &mut dyn ProgressReporter,
 ) -> Result<SearchReport, VFsSnifferError> {
-    let root = absolute_existing_path(&cli.root)?;
+    let roots = canonical_search_roots(&cli.roots)?;
     let kind = finding_kind(&cli.mode);
     let mode = compile_mode(&cli.mode, cli.case_sensitive)?;
+    let root_metadatas = roots
+        .iter()
+        .map(|root| {
+            let metadata = metadata_for(root, cli.follow_symlinks).map_err(|err| {
+                VFsSnifferError::new(format!(
+                    "failed to read metadata for '{}': {err}",
+                    root.display()
+                ))
+            })?;
+
+            if !metadata.is_dir() && !metadata.is_file() {
+                return Err(VFsSnifferError::new(format!(
+                    "'{}' is not a file or directory",
+                    root.display()
+                )));
+            }
+
+            Ok(metadata)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut ctx = SearchContext {
         cli,
-        root: root.clone(),
+        root: roots[0].clone(),
         mode,
         exclude_dirs: cli
             .exclude_dirs
@@ -147,7 +168,8 @@ pub fn search_with_progress(
             .collect::<Result<Vec<_>, _>>()?,
         progress,
         report: SearchReport {
-            root: root.clone(),
+            root: roots[0].clone(),
+            roots: roots.clone(),
             mode: kind,
             case_sensitive: cli.case_sensitive,
             recursive: cli.recursive,
@@ -157,26 +179,16 @@ pub fn search_with_progress(
         },
     };
 
-    let metadata = metadata_for(&root, cli.follow_symlinks).map_err(|err| {
-        VFsSnifferError::new(format!(
-            "failed to read metadata for '{}': {err}",
-            root.display()
-        ))
-    })?;
+    for (root, metadata) in roots.iter().zip(root_metadatas.iter()) {
+        ctx.root = root.clone();
 
-    if metadata.is_dir() {
-        ctx.visit_dir(&root, 0);
-    } else if metadata.is_file() {
-        if ctx.file_excluded(&root) {
+        if metadata.is_dir() {
+            ctx.visit_dir(root, 0);
+        } else if ctx.file_excluded(root) {
             ctx.report.stats.skipped_entries += 1;
         } else {
-            ctx.process_file(&root, &metadata);
+            ctx.process_file(root, metadata);
         }
-    } else {
-        return Err(VFsSnifferError::new(format!(
-            "'{}' is not a file or directory",
-            root.display()
-        )));
     }
 
     Ok(ctx.report)
@@ -1088,6 +1100,22 @@ fn last_unescaped_slash(expr: &str) -> Option<usize> {
     }
 
     None
+}
+
+fn canonical_search_roots(roots: &[PathBuf]) -> Result<Vec<PathBuf>, VFsSnifferError> {
+    if roots.is_empty() {
+        return Err(VFsSnifferError::new("missing search root path"));
+    }
+
+    let mut canonical = Vec::with_capacity(roots.len());
+    for root in roots {
+        let root = absolute_existing_path(root)?;
+        if !canonical.contains(&root) {
+            canonical.push(root);
+        }
+    }
+
+    Ok(canonical)
 }
 
 fn absolute_existing_path(path: &Path) -> Result<PathBuf, VFsSnifferError> {

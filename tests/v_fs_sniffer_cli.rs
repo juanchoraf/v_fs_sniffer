@@ -86,6 +86,50 @@ fn case_sensitive_flag_changes_string_matching() {
 }
 
 #[test]
+fn finds_strings_across_multiple_roots() {
+    let first = Fixture::new("multi_root_first");
+    let second = Fixture::new("multi_root_second");
+    first.write("web.txt", "needle from web\n");
+    second.write("api.txt", "needle from api\n");
+    let first_root = first.root.to_str().unwrap().to_owned();
+    let second_root = second.root.to_str().unwrap().to_owned();
+
+    let output = run(["--str", "needle", first_root.as_str(), second_root.as_str()]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("web.txt"));
+    assert!(stdout.contains("api.txt"));
+    assert!(stdout.contains("Summary: 2 matches"));
+}
+
+#[test]
+fn json_output_lists_multiple_roots() {
+    let first = Fixture::new("multi_root_json_first");
+    let second = Fixture::new("multi_root_json_second");
+    first.write("web.txt", "needle from web\n");
+    second.write("api.txt", "needle from api\n");
+    let first_root = first.root.to_str().unwrap().to_owned();
+    let second_root = second.root.to_str().unwrap().to_owned();
+
+    let output = run([
+        "--str",
+        "needle",
+        first_root.as_str(),
+        second_root.as_str(),
+        "--json",
+    ]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("\"root\":"));
+    assert!(stdout.contains("\"roots\": ["));
+    assert!(stdout.contains(&first_root));
+    assert!(stdout.contains(&second_root));
+    assert!(stdout.contains("\"findings\""));
+}
+
+#[test]
 fn no_recursive_still_checks_direct_children() {
     let fixture = Fixture::new("no_recursive");
     fixture.write("top.txt", "needle\n");
@@ -98,6 +142,33 @@ fn no_recursive_still_checks_direct_children() {
     assert!(stdout.contains("top.txt"));
     assert!(!stdout.contains("deep.txt"));
     assert!(stdout.contains("Summary: 1 matches"));
+}
+
+#[test]
+fn exclusions_apply_to_each_root() {
+    let first = Fixture::new("multi_root_exclusions_first");
+    let second = Fixture::new("multi_root_exclusions_second");
+    first.write("keep.txt", "needle visible\n");
+    first.write("skip/drop.txt", "needle hidden\n");
+    second.write("keep.txt", "needle visible\n");
+    second.write("skip/drop.txt", "needle hidden\n");
+    let first_root = first.root.to_str().unwrap().to_owned();
+    let second_root = second.root.to_str().unwrap().to_owned();
+
+    let output = run([
+        "--str",
+        "needle",
+        first_root.as_str(),
+        second_root.as_str(),
+        "--exclude-dir",
+        "skip",
+    ]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("keep.txt"));
+    assert!(!stdout.contains("drop.txt"));
+    assert!(stdout.contains("Summary: 2 matches"));
 }
 
 #[test]
@@ -292,6 +363,36 @@ fn replace_with_updates_string_matches_in_multiple_files() {
     assert_eq!(
         fs::read_to_string(fixture.root.join("nested/two.txt")).unwrap(),
         "thread and thread\n"
+    );
+}
+
+#[test]
+fn replace_with_updates_string_matches_across_multiple_roots() {
+    let first = Fixture::new("multi_root_replace_first");
+    let second = Fixture::new("multi_root_replace_second");
+    first.write("one.txt", "before needle after\n");
+    second.write("two.txt", "needle here\n");
+    let first_root = first.root.to_str().unwrap().to_owned();
+    let second_root = second.root.to_str().unwrap().to_owned();
+
+    let output = run([
+        "--str",
+        "needle",
+        first_root.as_str(),
+        second_root.as_str(),
+        "--replace-with",
+        "thread",
+    ]);
+
+    assert_success(&output);
+    assert!(stdout(&output).contains("Summary: 2 matches"));
+    assert_eq!(
+        fs::read_to_string(first.root.join("one.txt")).unwrap(),
+        "before thread after\n"
+    );
+    assert_eq!(
+        fs::read_to_string(second.root.join("two.txt")).unwrap(),
+        "thread here\n"
     );
 }
 

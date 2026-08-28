@@ -26,7 +26,7 @@ pub struct LineRange {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cli {
     pub mode: SearchMode,
-    pub root: PathBuf,
+    pub roots: Vec<PathBuf>,
     pub replace_with: Option<String>,
     pub recursive: bool,
     pub case_sensitive: bool,
@@ -116,7 +116,7 @@ impl LineReadCli {
 #[derive(Debug, Default)]
 struct CliBuilder {
     mode: Option<SearchMode>,
-    root: Option<PathBuf>,
+    roots: Vec<PathBuf>,
     lines: Option<LineRange>,
     replace_with: Option<String>,
     recursive: bool,
@@ -202,9 +202,9 @@ where
                 let value = args
                     .next()
                     .ok_or_else(|| VFsSnifferError::new("expected a search root after '--'"))?;
-                set_root(&mut builder, PathBuf::from(value))?;
+                push_root(&mut builder, PathBuf::from(value));
                 for trailing in args {
-                    set_root(&mut builder, PathBuf::from(trailing))?;
+                    push_root(&mut builder, PathBuf::from(trailing));
                 }
                 break;
             }
@@ -255,12 +255,12 @@ where
                         _ if arg.starts_with('-') => {
                             return Err(VFsSnifferError::new(format!("unknown option '{arg}'")));
                         }
-                        _ => set_root(&mut builder, PathBuf::from(arg))?,
+                        _ => push_root(&mut builder, PathBuf::from(arg)),
                     }
                 } else if arg.starts_with('-') {
                     return Err(VFsSnifferError::new(format!("unknown option '{arg}'")));
                 } else {
-                    set_root(&mut builder, PathBuf::from(arg))?;
+                    push_root(&mut builder, PathBuf::from(arg));
                 }
             }
         }
@@ -297,7 +297,7 @@ where
             ));
         }
 
-        if builder.root.is_some() {
+        if !builder.roots.is_empty() {
             return Err(VFsSnifferError::new(
                 "--lines reads a direct --file path and does not take a search root",
             ));
@@ -318,9 +318,9 @@ where
         }));
     }
 
-    let root = builder
-        .root
-        .ok_or_else(|| VFsSnifferError::new("missing search root path"))?;
+    if builder.roots.is_empty() {
+        return Err(VFsSnifferError::new("missing search root path"));
+    }
 
     if builder.replace_with.is_some() && matches!(&mode, SearchMode::Regex(_)) {
         return Err(VFsSnifferError::new(
@@ -330,7 +330,7 @@ where
 
     Ok(ParsedArgs::Run(Cli {
         mode,
-        root,
+        roots: builder.roots,
         replace_with: builder.replace_with,
         recursive: builder.recursive,
         case_sensitive: builder.case_sensitive,
@@ -440,7 +440,7 @@ fn is_valid_github_repo(value: &str) -> bool {
 
 fn builder_has_search_input(builder: &CliBuilder) -> bool {
     builder.mode.is_some()
-        || builder.root.is_some()
+        || !builder.roots.is_empty()
         || builder.lines.is_some()
         || builder.replace_with.is_some()
         || builder.output.is_some()
@@ -467,15 +467,8 @@ fn set_lines(builder: &mut CliBuilder, value: LineRange) -> Result<(), VFsSniffe
     Ok(())
 }
 
-fn set_root(builder: &mut CliBuilder, root: PathBuf) -> Result<(), VFsSnifferError> {
-    if builder.root.is_some() {
-        return Err(VFsSnifferError::new(
-            "only one search root path is allowed per run",
-        ));
-    }
-
-    builder.root = Some(root);
-    Ok(())
+fn push_root(builder: &mut CliBuilder, root: PathBuf) {
+    builder.roots.push(root);
 }
 
 fn parse_line_range(value: &str) -> Result<LineRange, VFsSnifferError> {
@@ -537,13 +530,13 @@ pub(crate) fn usage() -> String {
 USAGE:
   v_fs_sniffer
   v_fs_sniffer --file <path> --lines <start:end>
-  v_fs_sniffer --file <name> <root> [options]
-  v_fs_sniffer --file <name> <root> --replace-with <name> [options]
-  v_fs_sniffer --dir <name> <root> [options]
-  v_fs_sniffer --dir <name> <root> --replace-with <name> [options]
-  v_fs_sniffer --str <text> <root> [options]
-  v_fs_sniffer --str <text> <root> --replace-with <text> [options]
-  v_fs_sniffer --regex <expr> <root> [options]
+  v_fs_sniffer --file <name> <root> [root ...] [options]
+  v_fs_sniffer --file <name> <root> [root ...] --replace-with <name> [options]
+  v_fs_sniffer --dir <name> <root> [root ...] [options]
+  v_fs_sniffer --dir <name> <root> [root ...] --replace-with <name> [options]
+  v_fs_sniffer --str <text> <root> [root ...] [options]
+  v_fs_sniffer --str <text> <root> [root ...] --replace-with <text> [options]
+  v_fs_sniffer --regex <expr> <root> [root ...] [options]
   v_fs_sniffer --check-update [--github-repo owner/repo]
   v_fs_sniffer --update [--github-repo owner/repo]
   v_fs_sniffer --uninstall
@@ -563,7 +556,7 @@ SEARCH:
   --regex, -rx <expr>       Find regex matches inside files; supports /pattern/imsgxU
 
 OPTIONS:
-  -nr, --no-recursive       Search only the root's direct children
+  -nr, --no-recursive       Search only each root's direct children
   -cs, --case-sensitive     Use case-sensitive matching; default is case-insensitive
   --no-follow-symlinks      Do not follow symlinked files and directories
   --lines <start:end>       Read a 1-based inclusive line range; only with --file
@@ -675,6 +668,48 @@ mod tests {
         };
 
         assert!(cli.follow_symlinks);
+    }
+
+    #[test]
+    fn accepts_multiple_search_roots() {
+        let ParsedArgs::Run(cli) = parse([
+            "v_fs_sniffer",
+            "--str",
+            "companyProfileImpact",
+            "apps/web/src",
+            "apps/api/src",
+        ])
+        .expect("args should parse") else {
+            panic!("expected runnable CLI args");
+        };
+
+        assert_eq!(
+            cli.roots,
+            vec![PathBuf::from("apps/web/src"), PathBuf::from("apps/api/src")]
+        );
+    }
+
+    #[test]
+    fn double_dash_accepts_multiple_roots() {
+        let ParsedArgs::Run(cli) = parse([
+            "v_fs_sniffer",
+            "--str",
+            "needle",
+            "--",
+            "-dash-prefixed-root",
+            "path with spaces",
+        ])
+        .expect("args should parse") else {
+            panic!("expected runnable CLI args");
+        };
+
+        assert_eq!(
+            cli.roots,
+            vec![
+                PathBuf::from("-dash-prefixed-root"),
+                PathBuf::from("path with spaces")
+            ]
+        );
     }
 
     #[test]

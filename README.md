@@ -28,6 +28,7 @@ Made with AI (Codex) 🤖
 | Finds directories by name with recursive traversal
 | Searches literal text inside files
 | Searches file contents with the built-in regex engine
+| Searches one or more root paths in a single run
 | Reads an exact line or inclusive line range from one file with `--file <path> --lines <start:end>`
 | Recurses through hidden entries such as `.git` and `.htaccess`
 | Follows symlinked files and directories by default
@@ -89,6 +90,7 @@ Run one-shot searches from source:
 
 ```bash
 cargo run -- --str "needle" .
+cargo run -- --str "needle" apps/web/src apps/api/src
 cargo run -- --file "Cargo.toml" .
 cargo run -- --file "src/main.rs" --lines 260:320
 ```
@@ -287,19 +289,19 @@ Cargo uninstall commands affect only the current user. Package-manager uninstall
 ```text
 v_fs_sniffer
 v_fs_sniffer --file <path> --lines <start:end>
-v_fs_sniffer --file <name> <root> [options]
-v_fs_sniffer --file <name> <root> --replace-with <name> [options]
-v_fs_sniffer --dir <name> <root> [options]
-v_fs_sniffer --dir <name> <root> --replace-with <name> [options]
-v_fs_sniffer --str <text> <root> [options]
-v_fs_sniffer --str <text> <root> --replace-with <text> [options]
-v_fs_sniffer --regex <expr> <root> [options]
+v_fs_sniffer --file <name> <root> [root ...] [options]
+v_fs_sniffer --file <name> <root> [root ...] --replace-with <name> [options]
+v_fs_sniffer --dir <name> <root> [root ...] [options]
+v_fs_sniffer --dir <name> <root> [root ...] --replace-with <name> [options]
+v_fs_sniffer --str <text> <root> [root ...] [options]
+v_fs_sniffer --str <text> <root> [root ...] --replace-with <text> [options]
+v_fs_sniffer --regex <expr> <root> [root ...] [options]
 v_fs_sniffer --check-update
 v_fs_sniffer --update
 v_fs_sniffer --uninstall
 ```
 
-Running without arguments opens the interactive terminal. A one-shot command requires exactly one search mode.
+Running without arguments opens the interactive terminal. A one-shot command requires exactly one search mode and at least one search root.
 
 ### Search Modes
 
@@ -314,13 +316,13 @@ Running without arguments opens the interactive terminal. A one-shot command req
 | `--str <text> --replace-with <text>` | Replace literal text in UTF-8 files. |
 | `--regex <expr>`, `-rx <expr>` | Find regex matches inside files. |
 
-Matching is case-insensitive and recursive by default. Symlink targets are followed by default. File and directory replacement changes only the entry name, never its parent, and never overwrites a destination. Non-UTF-8 files are skipped with a warning during string replacement.
+Matching is case-insensitive and recursive by default. Symlink targets are followed by default. All roots use the same search mode and options. Exact duplicate roots are scanned once after path resolution; overlapping roots can still report the same files more than once. File and directory replacement changes only the entry name, never its parent, and never overwrites a destination. Non-UTF-8 files are skipped with a warning during string replacement.
 
 ### General Options
 
 | Option | Description |
 | --- | --- |
-| `-nr`, `--no-recursive` | Search only the root's direct children. |
+| `-nr`, `--no-recursive` | Search only each root's direct children. |
 | `-cs`, `--case-sensitive` | Match case sensitively. |
 | `--no-follow-symlinks` | Inspect symlinks without following their targets. |
 | `--lines <start:end>` | Read a line range from `--file <path>` without a search root. |
@@ -363,6 +365,7 @@ v_fs_sniffer --dir "old_name" . --replace-with "new_name"
 
 # Find and replace text
 v_fs_sniffer --str "TODO" .
+v_fs_sniffer --str "companyProfileImpact" apps/web/src apps/api/src
 v_fs_sniffer --str "old_value" . --replace-with "new_value"
 v_fs_sniffer --str "needle" ./src/main.rs
 
@@ -388,7 +391,7 @@ v_fs_sniffer --str "api_key" . --json --output findings.json --quiet
 
 ## Output
 
-JSON output contains `root`, `mode`, `case_sensitive`, `recursive`, `findings`, `stats`, and `warnings`. Findings include their kind, path, optional line and column, byte offset, matched text, and basic file metadata.
+JSON output contains `root`, `roots`, `mode`, `case_sensitive`, `recursive`, `findings`, `stats`, and `warnings`. `root` is the first resolved search root for compatibility, while `roots` lists every resolved root scanned. Findings include their kind, path, optional line and column, byte offset, matched text, and basic file metadata.
 
 ## Regex Support
 
