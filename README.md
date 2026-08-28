@@ -3,7 +3,7 @@
 [![Release_Badge]][Release_Url]
 [![Build_Badge]][Build_Url]
 [![Dependencies_Badge]][Dependencies_Url]
-[![License_Badge]][LICENSE-MIT]
+![License_Badge](https://img.shields.io/badge/License-Apache--2.0_or_MIT-blue)
 
 `v_fs_sniffer` is a fast Rust CLI for filesystem search and cleanup. It finds files, directories, text, regex matches, hidden entries, and exact line ranges; can rename entries, replace UTF-8 text, exclude noisy paths, export text/JSON reports, and install published updates.
 
@@ -452,7 +452,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Build_Url]: https://github.com/juanchoraf/v_fs_sniffer/actions?query=branch:main
 [Dependencies_Badge]: https://deps.rs/repo/github/juanchoraf/v_fs_sniffer/status.svg
 [Dependencies_Url]: https://deps.rs/repo/github/juanchoraf/v_fs_sniffer
-[License_Badge]: https://img.shields.io/crates/l/v_fs_sniffer
 
 [//]: # (licenses)
 
