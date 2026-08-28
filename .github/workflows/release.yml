@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v0.1.6"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  V_FS_SNIFFER_GITHUB_REPO: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-24.04
+            shell: bash
+            command: sh scripts/build_binaries_linux.sh --locked --no-update
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            shell: bash
+            command: sh scripts/build_binaries_linux.sh --locked --no-update
+          - name: macos-x86_64
+            runner: macos-15-intel
+            shell: bash
+            command: sh scripts/build_binaries_macos.sh --locked --no-update
+          - name: macos-arm64
+            runner: macos-15
+            shell: bash
+            command: sh scripts/build_binaries_macos.sh --locked --no-update
+          - name: windows-x86_64
+            runner: windows-2025
+            shell: pwsh
+            command: .\scripts\build_binaries_windows.ps1 -Locked -NoUpdate
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Check tag matches Cargo version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | sed -n '1p')
+          tag_version="${RELEASE_TAG#v}"
+          if [ "$version" != "$tag_version" ]; then
+            echo "Cargo.toml version $version does not match release tag $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+      - name: Install Linux package tools
+        if: startsWith(matrix.runner, 'ubuntu-')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip
+
+      - name: Build artifacts
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.command }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: v_fs_sniffer-${{ matrix.name }}
+          path: versions/v_fs_sniffer_v*/v_fs_sniffer_v*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          name: v_fs_sniffer ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          generate_release_notes: true
+          files: release-assets/*
+          fail_on_unmatched_files: true
