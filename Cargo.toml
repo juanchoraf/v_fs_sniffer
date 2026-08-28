@@ -1,6 +1,6 @@
 [package]
 name = "v_fs_sniffer"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["TheVelasquez.com"]
 description = "Deep filesystem sniffer for finding files, directories, strings, regex matches, and hidden clues."
