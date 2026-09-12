@@ -223,6 +223,46 @@ fn excludes_multiple_extensions_from_one_flag() {
 }
 
 #[test]
+fn extension_presets_exclude_files_in_all_file_search_modes() {
+    let fixture = Fixture::new("extension_presets");
+    for extension in [
+        "MP4", "png", "sqlite", "exe", "mp3", "tar.gz", "woff2", "pdf", "custom",
+    ] {
+        fixture.write(&format!("nested/sample.{extension}"), "needle\n");
+    }
+    fixture.write("sample.txt", "needle\n");
+    fixture.write("sample.mp4.bak", "needle\n");
+    for (mode, query) in [
+        ("--file", "sample"),
+        ("--str", "needle"),
+        ("--regex", "needle"),
+    ] {
+        let output = run([
+            mode,
+            query,
+            fixture.root.to_str().unwrap(),
+            "-ee",
+            "VIDEO, IMGS, DBS, BINARIES, AUDIO, ARCHIVES, FONTS, DOCUMENTS, .custom",
+        ]);
+        assert_success(&output);
+        let stdout = stdout(&output);
+        assert!(stdout.contains("Summary: 2 matches"));
+        assert!(stdout.contains("sample.txt"));
+        assert!(stdout.contains("sample.mp4.bak"));
+    }
+    let output = run([
+        "--file",
+        "sample",
+        fixture.root.to_str().unwrap(),
+        "-ee",
+        "video",
+        "--case-sensitive",
+    ]);
+    assert_success(&output);
+    assert!(stdout(&output).contains("sample.MP4"));
+}
+
+#[test]
 fn excludes_compound_extensions_from_names_and_contents() {
     let fixture = Fixture::new("compound_extensions");
     let archive = "v_color_picker_v0.1.2_linux_x86_64.tar.gz";

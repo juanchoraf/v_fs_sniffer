@@ -68,12 +68,9 @@ Made with AI (Codex) 🤖
 
 ## Quick Start
 
-Build and open the interactive terminal:
-
-```bash
-cargo build --release
-cargo run --
-```
+1. Downlaod latest app version and install it.
+2. Launch the app from the operating system app launcher.
+3. Use it:
 
 Inside the terminal, press Tab to complete commands and paths, including paths with spaces:
 
@@ -83,8 +80,14 @@ v_fs_sniffer> clear
 v_fs_sniffer> version
 ```
 
-The `clear` command clears the entire console and redraws the ASCII logo and header.
-The `version` command prints only the installed app version, such as `0.1.0`.
+or from terminal or console:
+
+```bash
+v_fs_sniffer --str "TODO" . --exclude-dir target
+v_fs_sniffer --regex '/error|warning/i' .
+v_fs_sniffer --check-update
+v_fs_sniffer --update
+```
 
 Run one-shot searches from source:
 
@@ -95,14 +98,50 @@ cargo run -- --file "Cargo.toml" .
 cargo run -- --file "src/main.rs" --lines 260:320
 ```
 
-After installation:
+The `clear` command clears the entire console and redraws the ASCII logo and header.
+The `version` command prints only the installed app version, such as `0.1.0`.
+
+## Usage
+
+`-ee` accepts comma/space-separated extensions, with or without a leading dot:
 
 ```bash
-v_fs_sniffer --str "TODO" . --exclude-dir target
-v_fs_sniffer --regex '/error|warning/i' .
-v_fs_sniffer --check-update
-v_fs_sniffer --update
+v_fs_sniffer --file 'v_color_picker_v0.1.2_linux_x86_64.tar.gz' ./versions -ee '.bin, .deb, .zip, .tar.gz'
 ```
+
+`.tar.gz` excludes names ending in `.tar.gz`, including uppercase variants unless
+`--case-sensitive` is set. It keeps `archive.gz` and `archive.tar.gz.bak`.
+Using `.gz` excludes both `archive.gz` and `archive.tar.gz`.
+
+You can mix extension presets with ordinary extensions:
+
+```bash
+v_fs_sniffer --str 'needle' . -ee 'VIDEO, IMGS, DBS, BINARIES'
+v_fs_sniffer --file 'release' ./versions --exclude-extensions 'ARCHIVES, BINARIES, .log'
+```
+
+Preset names are case-insensitive (`video` and `VIDEO` are equivalent). Commas,
+spaces, and semicolons separate entries; repeated `-ee` flags combine exclusions.
+Unknown names are treated as literal extensions. Prefix a name with a dot to
+force a literal extension: `.video` excludes files ending in `.video` only.
+Presets expand to these lowercase extensions; `--case-sensitive` therefore keeps
+uppercase variants unless you explicitly exclude those too.
+
+| Preset | Extensions |
+| --- | --- |
+| `VIDEO` | mp4 m4v mkv webm mov avi wmv flv mpg mpeg m2v ts mts m2ts vob ogv 3gp 3g2 |
+| `IMGS` | jpg jpeg jpe png gif webp avif heic heif bmp tif tiff ico icns svg raw cr2 cr3 nef arw dng psd |
+| `DBS` | db sqlite sqlite3 db3 mdb accdb mdf ndf ldf dbf rdb sql db-wal db-shm sqlite-wal sqlite-shm sqlite3-wal sqlite3-shm |
+| `BINARIES` | bin exe dll so dylib a lib o obj class pyc pyo wasm elf com msi deb rpm apk appimage |
+| `AUDIO` | mp3 wav flac aac m4a ogg oga opus wma aiff aif alac mid midi amr |
+| `ARCHIVES` | zip 7z rar tar gz bz2 xz zst zstd tgz tbz tbz2 txz tzst lz lzma lz4 cab iso dmg jar war ear fsb tar.gz tar.bz2 tar.xz tar.zst |
+| `FONTS` | ttf otf woff woff2 eot ttc |
+| `DOCUMENTS` | pdf doc docx xls xlsx ppt pptx odt ods odp rtf epub mobi |
+
+Presets match filename suffixes, not file contents or detected types. For example,
+`VIDEO` also excludes TypeScript `.ts` files, and `DBS` includes `.sql` dumps.
+Use individual extensions when a preset is broader than you need. `BINARIES`
+does not exclude executables without an extension or versioned names like `lib.so.1`.
 
 ## Requirements
 

@@ -359,10 +359,39 @@ fn next_value(
         .ok_or_else(|| VFsSnifferError::new(format!("expected a value after '{flag}'")))
 }
 
+const EXTENSION_PRESETS: &[(&str, &str)] = &[
+    ("VIDEO", "mp4 m4v mkv webm mov avi wmv flv mpg mpeg m2v ts mts m2ts vob ogv 3gp 3g2"),
+    ("IMGS", "jpg jpeg jpe png gif webp avif heic heif bmp tif tiff ico icns svg raw cr2 cr3 nef arw dng psd"),
+    ("DBS", "db sqlite sqlite3 db3 mdb accdb mdf ndf ldf dbf rdb sql db-wal db-shm sqlite-wal sqlite-shm sqlite3-wal sqlite3-shm"),
+    ("BINARIES", "bin exe dll so dylib a lib o obj class pyc pyo wasm elf com msi deb rpm apk appimage"),
+    ("AUDIO", "mp3 wav flac aac m4a ogg oga opus wma aiff aif alac mid midi amr"),
+    ("ARCHIVES", "zip 7z rar tar gz bz2 xz zst zstd tgz tbz tbz2 txz tzst lz lzma lz4 cab iso dmg jar war ear fsb tar.gz tar.bz2 tar.xz tar.zst"),
+    ("FONTS", "ttf otf woff woff2 eot ttc"),
+    ("DOCUMENTS", "pdf doc docx xls xlsx ppt pptx odt ods odp rtf epub mobi"),
+];
+
 fn push_exclude_extensions(builder: &mut CliBuilder, value: &str) {
-    builder
-        .exclude_extensions
-        .extend(split_extensions(value).map(str::to_owned));
+    for token in value.split(|ch: char| ch == ',' || ch == ';' || ch.is_whitespace()) {
+        // A leading dot explicitly requests a literal extension, even if its
+        // name is also a preset (for example, `.video`).
+        let expanded = if token.starts_with('.') {
+            token
+        } else {
+            EXTENSION_PRESETS
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case(token))
+                .map_or(token, |(_, extensions)| *extensions)
+        };
+        for extension in split_extensions(expanded) {
+            if !builder
+                .exclude_extensions
+                .iter()
+                .any(|item| item == extension)
+            {
+                builder.exclude_extensions.push(extension.to_owned());
+            }
+        }
+    }
 }
 
 fn split_extensions(value: &str) -> impl Iterator<Item = &str> {
@@ -576,6 +605,8 @@ EXCLUSIONS:
   -ed, --exclude-dir <path-or-name>      Same as above
   -ef, --exclude-file <path-or-name>     Exclude matching files
   -ee, --exclude-extensions <exts>       Exclude comma or space separated file extensions. Written with or without a leading dot.
+                                       Presets: VIDEO, IMGS, DBS, BINARIES, AUDIO, ARCHIVES, FONTS, DOCUMENTS.
+                                       Mix presets and extensions; preset names ignore case. Use .video for a literal extension.
   -el, --exclude-line <text>             Exclude content lines containing text
   -er, --exclude-regex <expr>            Exclude paths or content lines matching regex
 "#;
@@ -592,6 +623,57 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{parse, version_text, LineRange, ParsedArgs};
+
+    #[test]
+    fn extension_presets_mix_with_literals_and_repeated_flags() {
+        for flag in ["-ee", "--exclude-extensions"] {
+            let ParsedArgs::Run(cli) = parse([
+                "v_fs_sniffer",
+                "--file",
+                "sample",
+                ".",
+                flag,
+                "vIdEo, IMGS; DBS BINARIES AUDIO ARCHIVES FONTS DOCUMENTS",
+                "-ee=.video,.CUSTOM,.tar.gz,VIDEO",
+                "--case-sensitive",
+            ])
+            .unwrap() else {
+                panic!("expected runnable CLI args");
+            };
+            for extension in [
+                "mp4", "png", "sqlite", "exe", "mp3", "tar.gz", "woff2", "pdf", "video", "CUSTOM",
+            ] {
+                assert!(
+                    cli.exclude_extensions.iter().any(|item| item == extension),
+                    "missing {extension}"
+                );
+            }
+            assert_eq!(
+                cli.exclude_extensions
+                    .iter()
+                    .filter(|item| *item == "mp4")
+                    .count(),
+                1
+            );
+            assert!(cli.case_sensitive);
+        }
+    }
+
+    #[test]
+    fn dotted_preset_names_and_unknown_names_are_literal_extensions() {
+        let ParsedArgs::Run(cli) = parse([
+            "v_fs_sniffer",
+            "--file",
+            "sample",
+            ".",
+            "-ee",
+            ".VIDEO, custom .tar.gz",
+        ])
+        .unwrap() else {
+            panic!("expected runnable CLI args");
+        };
+        assert_eq!(cli.exclude_extensions, vec!["VIDEO", "custom", "tar.gz"]);
+    }
 
     #[test]
     fn help_is_not_a_parse_error() {
