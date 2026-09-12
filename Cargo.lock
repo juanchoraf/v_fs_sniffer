@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "bitflags"
-version = "2.13.1"
+version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "cfg-if"
@@ -110,7 +110,7 @@ checksum = "9e6e487237df18fea3317b41c345f2491704ffb1101d0b2cc99cf00de74bc292"
 
 [[package]]
 name = "v_fs_sniffer"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "rustyline",
  "v_concat",

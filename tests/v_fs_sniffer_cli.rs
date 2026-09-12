@@ -867,7 +867,7 @@ fn replace_with_leaves_non_utf8_files_unchanged() {
     );
 }
 
-fn run<const N: usize>(args: [&str; N]) -> Output {
+fn run<'a>(args: impl IntoIterator<Item = &'a str>) -> Output {
     Command::new(env!("CARGO_BIN_EXE_v_fs_sniffer"))
         .args(args)
         .output()
