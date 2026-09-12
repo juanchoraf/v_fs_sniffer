@@ -593,6 +593,13 @@ USAGE:
   v_fs_sniffer --update [--github-repo owner/repo]
   v_fs_sniffer --uninstall
 
+ROOTS:
+  Quote root patterns to let the app expand '*' within file/directory names.
+  Example: v_fs_sniffer --file .zip "/path/to/versions/v_*_v*/"
+  '*' matches zero or more characters, including hidden names, but not separators.
+  Matching is case-sensitive; a trailing separator selects directories only.
+  Unmatched patterns are errors. '**' is not recursive glob syntax.
+
 INTERACTIVE:
   Run without arguments to open the terminal app. Press Tab to autocomplete
   commands and filesystem paths. Paths with spaces are inserted quoted, such as

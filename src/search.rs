@@ -1,7 +1,7 @@
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, ErrorKind, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::args::{Cli, SearchMode};
@@ -1148,13 +1148,123 @@ fn canonical_search_roots(roots: &[PathBuf]) -> Result<Vec<PathBuf>, VFsSnifferE
 
     let mut canonical = Vec::with_capacity(roots.len());
     for root in roots {
-        let root = absolute_existing_path(root)?;
-        if !canonical.contains(&root) {
-            canonical.push(root);
+        for expanded in expand_search_root(root)? {
+            let root = absolute_existing_path(&expanded)?;
+            if !canonical.contains(&root) {
+                canonical.push(root);
+            }
         }
     }
 
     Ok(canonical)
+}
+
+fn expand_search_root(root: &Path) -> Result<Vec<PathBuf>, VFsSnifferError> {
+    let has_wildcards = root.components().any(|component| {
+        matches!(component, Component::Normal(name) if name.as_encoded_bytes().contains(&b'*'))
+    });
+    if !has_wildcards {
+        return Ok(vec![root.to_path_buf()]);
+    }
+
+    let mut candidates = vec![PathBuf::new()];
+    for component in root.components() {
+        if let Component::Normal(pattern) = component {
+            if pattern.as_encoded_bytes().contains(&b'*') {
+                let mut matches = Vec::new();
+                for parent in candidates {
+                    let directory = if parent.as_os_str().is_empty() {
+                        Path::new(".")
+                    } else {
+                        &parent
+                    };
+                    let entries = match fs::read_dir(directory) {
+                        Ok(entries) => entries,
+                        Err(err)
+                            if matches!(
+                                err.kind(),
+                                ErrorKind::NotFound | ErrorKind::NotADirectory
+                            ) =>
+                        {
+                            continue
+                        }
+                        Err(err) => return Err(root_expansion_error(root, directory, err)),
+                    };
+                    for entry in entries {
+                        let entry =
+                            entry.map_err(|err| root_expansion_error(root, directory, err))?;
+                        if wildcard_component_matches(
+                            pattern.as_encoded_bytes(),
+                            entry.file_name().as_encoded_bytes(),
+                        ) {
+                            matches.push(parent.join(entry.file_name()));
+                        }
+                    }
+                }
+                candidates = matches;
+                continue;
+            }
+        }
+        for candidate in &mut candidates {
+            candidate.push(component.as_os_str());
+        }
+    }
+
+    let raw = root.as_os_str().as_encoded_bytes();
+    let directories_only = raw.ends_with(b"/") || (cfg!(windows) && raw.ends_with(b"\\"));
+    let mut matches = Vec::new();
+    for candidate in candidates {
+        match fs::metadata(&candidate) {
+            Ok(metadata) if !directories_only || metadata.is_dir() => matches.push(candidate),
+            Ok(_) => {}
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {}
+            Err(err) => return Err(root_expansion_error(root, &candidate, err)),
+        }
+    }
+    matches.sort();
+    if matches.is_empty() {
+        return Err(VFsSnifferError::new(format!(
+            "search root pattern '{}' matched no files or directories",
+            root.display()
+        )));
+    }
+    Ok(matches)
+}
+
+fn root_expansion_error(root: &Path, path: &Path, err: std::io::Error) -> VFsSnifferError {
+    VFsSnifferError::new(format!(
+        "failed to expand search root '{}' at '{}': {err}",
+        root.display(),
+        path.display()
+    ))
+}
+
+// Match a single native path component. Only '*' is special, and it may
+// consume zero or more bytes, including non-UTF-8 filenames on Unix.
+fn wildcard_component_matches(pattern: &[u8], name: &[u8]) -> bool {
+    let (mut p, mut n) = (0, 0);
+    let mut star = None;
+    let mut retry = 0;
+    while n < name.len() {
+        if p < pattern.len() && pattern[p] == b'*' {
+            star = Some(p);
+            p += 1;
+            retry = n;
+        } else if p < pattern.len() && pattern[p] == name[n] {
+            p += 1;
+            n += 1;
+        } else if let Some(index) = star {
+            retry += 1;
+            n = retry;
+            p = index + 1;
+        } else {
+            return false;
+        }
+    }
+    while p < pattern.len() && pattern[p] == b'*' {
+        p += 1;
+    }
+    p == pattern.len()
 }
 
 fn absolute_existing_path(path: &Path) -> Result<PathBuf, VFsSnifferError> {
@@ -1199,4 +1309,34 @@ fn system_time_to_unix(time: SystemTime) -> Option<u64> {
     time.duration_since(UNIX_EPOCH)
         .ok()
         .map(|duration| duration.as_secs())
+}
+
+#[cfg(test)]
+mod root_wildcard_tests {
+    use super::wildcard_component_matches;
+
+    #[test]
+    fn stars_match_whole_components_with_backtracking() {
+        for (pattern, name, expected) in [
+            ("v_*_v*", "v_color_picker_v0.1.2", true),
+            ("v_*_v*", "v__v", true),
+            ("v_*_v*", "prefix_v_app_v1", false),
+            ("*ab", "abab", true),
+            ("*ab", "aba", false),
+            ("a**b", "ab", true),
+            ("*", ".hidden", true),
+            ("*é", "café", true),
+            ("a*", "Ab", false),
+            ("?", "a", false),
+            ("*", "", true),
+            ("", "a", false),
+        ] {
+            assert_eq!(
+                wildcard_component_matches(pattern.as_bytes(), name.as_bytes()),
+                expected,
+                "{pattern:?} against {name:?}"
+            );
+        }
+        assert!(wildcard_component_matches(b"*.log", b"\xff.log"));
+    }
 }

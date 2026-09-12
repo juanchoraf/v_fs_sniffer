@@ -28,7 +28,7 @@ Made with AI (Codex) 🤖
 | Finds directories by name with recursive traversal
 | Searches literal text inside files
 | Searches file names, directory names, or file contents with separate regex options
-| Searches one or more root paths in a single run
+| Searches one or more root paths in a single run, including quoted `*` wildcard patterns
 | Reads an exact line or inclusive line range from one file with `--file <path> --lines <start:end>`
 | Recurses through hidden entries such as `.git` and `.htaccess`
 | Follows symlinked files and directories by default
@@ -102,6 +102,34 @@ The `clear` command clears the entire console and redraws the ASCII logo and hea
 The `version` command prints only the installed app version, such as `0.1.0`.
 
 ## Usage
+
+Root paths accept `*` wildcards within any file or directory name:
+
+```bash
+v_fs_sniffer --file '.tar.gz' '/path/to/versions/v_color_picker_v0.1.*/'
+v_fs_sniffer --file '.tar.gz' '/path/to/versions/v_color_picker_v0.*.2/'
+v_fs_sniffer --file '.tar.gz' '/path/to/versions/v_*_v*/'
+v_fs_sniffer --str-regex 'error[ :]+[0-9]+' './apps/*/logs/*.log'
+```
+
+Quote patterns so the app expands them consistently rather than your shell.
+Use double quotes in Windows `cmd.exe`, for example
+`v_fs_sniffer --file ".zip" "C:/Program Files/Releases/v_*_v*/"`.
+The interactive terminal accepts the same quoted patterns.
+
+`*` matches zero or more characters in one path component, including hidden
+names; it never crosses a path separator. Root wildcard matching is
+case-sensitive, independently of `--case-sensitive` for search queries.
+Only `*` is special: `?`, bracket ranges, and recursive `**` globbing are not
+supported (consecutive stars behave like one star). A trailing separator limits
+matches to directories; otherwise files and directories can both become roots.
+Each wildcard root expands in sorted order, and identical canonical roots are
+scanned once. You can mix patterns with literal roots in the same command.
+An unmatched pattern or an inaccessible directory produces an error before
+scanning. `--no-recursive` limits scanning inside each expanded root; wildcard
+expansion still resolves every component of the supplied pattern.
+This applies to all search modes; `--file <path> --lines N:M` still takes one
+literal file path.
 
 `-ee` accepts comma/space-separated extensions, with or without a leading dot:
 

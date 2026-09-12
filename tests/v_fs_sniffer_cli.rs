@@ -104,6 +104,98 @@ fn finds_strings_across_multiple_roots() {
 }
 
 #[test]
+fn wildcard_roots_expand_version_patterns_and_deduplicate() {
+    let fixture = Fixture::new("wildcard_versions");
+    for version in [
+        "v_color_picker_v0.1.2",
+        "v_color_picker_v0.1.3",
+        "v_color_picker_v0.2.2",
+        "v_other_v1.0.0",
+    ] {
+        fixture.write(&format!("versions/{version}/clue.txt"), "needle\n");
+    }
+    fixture.write("versions/unrelated/clue.txt", "needle\n");
+    for (pattern, count) in [
+        ("v_color_picker_v0.1.*", 2),
+        ("v_color_picker_v0.*.2", 2),
+        ("v_*_v*", 4),
+    ] {
+        let root = format!("{}/", fixture.root.join("versions").join(pattern).display());
+        let output = run(["--str", "needle", &root]);
+        assert_success(&output);
+        assert!(stdout(&output).contains(&format!("Summary: {count} matches")));
+        assert!(!stdout(&output).contains("unrelated"));
+    }
+    let pattern = fixture.root.join("versions/v_*_v*");
+    let literal = fixture.root.join("versions/v_color_picker_v0.1.2");
+    let output = run([
+        "--file",
+        "clue",
+        pattern.to_str().unwrap(),
+        literal.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_success(&output);
+    assert_eq!(stdout(&output).matches("\"kind\": \"file\"").count(), 4);
+}
+
+#[test]
+fn wildcard_roots_support_relative_paths_spaces_and_multiple_components() {
+    let fixture = Fixture::new("wildcard_relative");
+    fixture.write("apps/one app/logs/a.log", "needle\n");
+    fixture.write("apps/.hidden/logs/b.log", "needle\n");
+    fixture.write("apps/one app/logs/deeper/c.log", "needle\n");
+    fixture.write("apps/file", "needle\n");
+    let output = Command::new(env!("CARGO_BIN_EXE_v_fs_sniffer"))
+        .current_dir(&fixture.root)
+        .args([
+            "--str-regex",
+            "needle",
+            "./apps/*/logs/*.log",
+            "--no-recursive",
+        ])
+        .output()
+        .unwrap();
+    assert_success(&output);
+    assert!(stdout(&output).contains("Summary: 2 matches"));
+    assert!(stdout(&output).contains("a.log"));
+    assert!(stdout(&output).contains("b.log"));
+    assert!(!stdout(&output).contains("c.log"));
+}
+
+#[test]
+fn wildcard_roots_honor_trailing_separator_and_exclusions() {
+    let fixture = Fixture::new("wildcard_directory_only");
+    fixture.write("entry_dir/keep.txt", "needle\n");
+    fixture.write("entry_dir/skip.log", "needle\n");
+    fixture.write("entry_file", "needle\n");
+    let pattern = format!("{}/", fixture.root.join("entry_*").display());
+    let output = run(["--str", "needle", &pattern, "-ee", "log", "--no-recursive"]);
+    assert_success(&output);
+    assert!(stdout(&output).contains("Summary: 1 matches"));
+    assert!(stdout(&output).contains("keep.txt"));
+    assert!(!stdout(&output).contains("entry_file"));
+    assert!(!stdout(&output).contains("skip.log"));
+}
+
+#[test]
+fn unmatched_root_pattern_is_an_error_even_with_a_valid_root() {
+    let fixture = Fixture::new("wildcard_no_matches");
+    fixture.write("keep.txt", "needle\n");
+    let pattern = fixture.root.join("missing*/logs");
+    let output = run([
+        "--str",
+        "needle",
+        fixture.root.to_str().unwrap(),
+        pattern.to_str().unwrap(),
+    ]);
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("matched no files or directories"));
+    assert!(stderr(&output).contains("missing*"));
+    assert!(!stdout(&output).contains("keep.txt"));
+}
+
+#[test]
 fn json_output_lists_multiple_roots() {
     let first = Fixture::new("multi_root_json_first");
     let second = Fixture::new("multi_root_json_second");
