@@ -85,7 +85,9 @@ enum CompiledMode {
     File(LiteralMatcher),
     Dir(LiteralMatcher),
     String(LiteralMatcher),
-    Regex(SimpleRegex),
+    FileRegex(SimpleRegex),
+    DirRegex(SimpleRegex),
+    StrRegex(SimpleRegex),
 }
 
 #[derive(Debug, Clone)]
@@ -257,6 +259,13 @@ impl SearchContext<'_> {
     }
 
     fn process_dir_match(&mut self, path: &Path, metadata: &fs::Metadata) -> PathBuf {
+        if let CompiledMode::DirRegex(regex) = &self.mode {
+            if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
+                if regex.is_match(name) {
+                    self.push_entry_finding(path, metadata, FindingKind::Dir, "dir", name, None);
+                }
+            }
+        }
         if let CompiledMode::Dir(matcher) = &self.mode {
             let matcher = matcher.clone();
             let name = path
@@ -324,7 +333,21 @@ impl SearchContext<'_> {
                     );
                 }
             }
-            CompiledMode::Regex(regex) => {
+            CompiledMode::FileRegex(regex) => {
+                if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
+                    if regex.is_match(name) {
+                        self.push_entry_finding(
+                            path,
+                            metadata,
+                            FindingKind::File,
+                            "file",
+                            name,
+                            None,
+                        );
+                    }
+                }
+            }
+            CompiledMode::StrRegex(regex) => {
                 self.scan_file_content(
                     path,
                     metadata,
@@ -332,7 +355,7 @@ impl SearchContext<'_> {
                     FindingKind::Regex,
                 );
             }
-            CompiledMode::Dir(_) => {}
+            CompiledMode::Dir(_) | CompiledMode::DirRegex(_) => {}
         }
     }
 
@@ -801,7 +824,15 @@ fn compile_mode(mode: &SearchMode, case_sensitive: bool) -> Result<CompiledMode,
                 case_sensitive,
             )))
         }
-        SearchMode::Regex(expr) => Ok(CompiledMode::Regex(compile_user_regex(
+        SearchMode::FileRegex(expr) => Ok(CompiledMode::FileRegex(compile_user_regex(
+            expr,
+            !case_sensitive,
+        )?)),
+        SearchMode::DirRegex(expr) => Ok(CompiledMode::DirRegex(compile_user_regex(
+            expr,
+            !case_sensitive,
+        )?)),
+        SearchMode::StrRegex(expr) => Ok(CompiledMode::StrRegex(compile_user_regex(
             expr,
             !case_sensitive,
         )?)),
@@ -810,10 +841,10 @@ fn compile_mode(mode: &SearchMode, case_sensitive: bool) -> Result<CompiledMode,
 
 fn finding_kind(mode: &SearchMode) -> FindingKind {
     match mode {
-        SearchMode::File(_) => FindingKind::File,
-        SearchMode::Dir(_) => FindingKind::Dir,
+        SearchMode::File(_) | SearchMode::FileRegex(_) => FindingKind::File,
+        SearchMode::Dir(_) | SearchMode::DirRegex(_) => FindingKind::Dir,
         SearchMode::Str(_) => FindingKind::String,
-        SearchMode::Regex(_) => FindingKind::Regex,
+        SearchMode::StrRegex(_) => FindingKind::Regex,
     }
 }
 

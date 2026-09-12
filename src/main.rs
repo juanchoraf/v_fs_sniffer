@@ -55,8 +55,9 @@ const INTERACTIVE_COMMANDS: &[&str] = &[
     "--file",
     "--dir",
     "--str",
-    "--regex",
-    "-rx",
+    "--file-regex",
+    "--dir-regex",
+    "--str-regex",
     "--replace-with",
     "--lines",
     "--check-update",
@@ -1143,6 +1144,21 @@ mod tests {
         let pairs = command_completion_pairs("ver");
 
         assert!(pairs.iter().any(|pair| pair.replacement == "version "));
+    }
+
+    #[test]
+    fn regex_completion_offers_the_three_scoped_modes() {
+        for flag in ["--file-regex", "--dir-regex", "--str-regex"] {
+            let pairs = command_completion_pairs(flag);
+            assert!(pairs
+                .iter()
+                .any(|pair| pair.replacement == format!("{flag} ")));
+        }
+        assert!(command_completion_pairs("--regex").is_empty());
+        assert!(command_completion_pairs("-rx").is_empty());
+        let tokens =
+            split_interactive_line(r#"--file-regex '\.tar\.gz$' 'path with spaces'"#).unwrap();
+        assert_eq!(tokens, ["--file-regex", r"\.tar\.gz$", "path with spaces"]);
     }
 
     #[test]

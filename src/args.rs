@@ -8,7 +8,9 @@ pub enum SearchMode {
     File(String),
     Dir(String),
     Str(String),
-    Regex(String),
+    FileRegex(String),
+    DirRegex(String),
+    StrRegex(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,9 +169,17 @@ where
             "--dir" => set_mode(&mut builder, SearchMode::Dir(next_value(&mut args, &arg)?))?,
             "--str" => set_mode(&mut builder, SearchMode::Str(next_value(&mut args, &arg)?))?,
             "--replace-with" => set_replace_with(&mut builder, next_value(&mut args, &arg)?)?,
-            "--regex" | "-rx" => set_mode(
+            "--file-regex" => set_mode(
                 &mut builder,
-                SearchMode::Regex(next_value(&mut args, &arg)?),
+                SearchMode::FileRegex(next_value(&mut args, &arg)?),
+            )?,
+            "--dir-regex" => set_mode(
+                &mut builder,
+                SearchMode::DirRegex(next_value(&mut args, &arg)?),
+            )?,
+            "--str-regex" => set_mode(
+                &mut builder,
+                SearchMode::StrRegex(next_value(&mut args, &arg)?),
             )?,
             "-nr" | "--no-recursive" => builder.recursive = false,
             "-cs" | "--case-sensitive" => builder.case_sensitive = true,
@@ -230,8 +240,14 @@ where
                             set_update_mode(&mut builder, UpdateMode::Install)?
                         }
                         "--github-repo" => set_github_repo(&mut builder, value.to_owned())?,
-                        "--regex" | "-rx" => {
-                            set_mode(&mut builder, SearchMode::Regex(value.to_owned()))?
+                        "--file-regex" => {
+                            set_mode(&mut builder, SearchMode::FileRegex(value.to_owned()))?
+                        }
+                        "--dir-regex" => {
+                            set_mode(&mut builder, SearchMode::DirRegex(value.to_owned()))?
+                        }
+                        "--str-regex" => {
+                            set_mode(&mut builder, SearchMode::StrRegex(value.to_owned()))?
                         }
                         "-o" | "--output" | "--export" => {
                             builder.output = Some(PathBuf::from(value));
@@ -283,7 +299,7 @@ where
     }
 
     let mode = builder.mode.ok_or_else(|| {
-        VFsSnifferError::new("missing search mode: use --file, --dir, --str, or --regex")
+        VFsSnifferError::new("missing search mode: use --file, --dir, --str, --file-regex, --dir-regex, or --str-regex")
     })?;
 
     if let Some(lines) = builder.lines {
@@ -322,7 +338,12 @@ where
         return Err(VFsSnifferError::new("missing search root path"));
     }
 
-    if builder.replace_with.is_some() && matches!(&mode, SearchMode::Regex(_)) {
+    if builder.replace_with.is_some()
+        && matches!(
+            &mode,
+            SearchMode::FileRegex(_) | SearchMode::DirRegex(_) | SearchMode::StrRegex(_)
+        )
+    {
         return Err(VFsSnifferError::new(
             "--replace-with can only be used with --file, --dir, or --str",
         ));
@@ -404,7 +425,7 @@ fn split_extensions(value: &str) -> impl Iterator<Item = &str> {
 fn set_mode(builder: &mut CliBuilder, mode: SearchMode) -> Result<(), VFsSnifferError> {
     if builder.mode.is_some() {
         return Err(VFsSnifferError::new(
-            "only one search mode is allowed: choose --file, --dir, --str, or --regex",
+            "only one search mode is allowed: choose --file, --dir, --str, --file-regex, --dir-regex, or --str-regex",
         ));
     }
 
@@ -565,7 +586,9 @@ USAGE:
   v_fs_sniffer --dir <name> <root> [root ...] --replace-with <name> [options]
   v_fs_sniffer --str <text> <root> [root ...] [options]
   v_fs_sniffer --str <text> <root> [root ...] --replace-with <text> [options]
-  v_fs_sniffer --regex <expr> <root> [root ...] [options]
+  v_fs_sniffer --file-regex <expr> <root> [root ...] [options]
+  v_fs_sniffer --dir-regex <expr> <root> [root ...] [options]
+  v_fs_sniffer --str-regex <expr> <root> [root ...] [options]
   v_fs_sniffer --check-update [--github-repo owner/repo]
   v_fs_sniffer --update [--github-repo owner/repo]
   v_fs_sniffer --uninstall
@@ -582,7 +605,10 @@ SEARCH:
   --file <path> --lines N:M Read inclusive line range N:M from one file
   --dir <name>              Find directories whose names contain <name>
   --str <text>              Find literal text inside files
-  --regex, -rx <expr>       Find regex matches inside files; supports /pattern/imsgxU
+  --file-regex <expr>       Find files whose names match a regex
+  --dir-regex <expr>        Find directories whose names match a regex
+  --str-regex <expr>        Find regex matches inside files, line by line
+                           All regex modes support /pattern/imsgxU
 
 OPTIONS:
   -nr, --no-recursive       Search only each root's direct children
@@ -622,7 +648,44 @@ pub(crate) fn version_text() -> String {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{parse, version_text, LineRange, ParsedArgs};
+    use super::{parse, version_text, LineRange, ParsedArgs, SearchMode};
+
+    #[test]
+    fn regex_modes_accept_separate_and_assignment_values() {
+        for (flag, expected) in [
+            ("--file-regex", SearchMode::FileRegex("^name$".into())),
+            ("--dir-regex", SearchMode::DirRegex("^name$".into())),
+            ("--str-regex", SearchMode::StrRegex("^name$".into())),
+        ] {
+            let assignment = format!("{flag}=^name$");
+            for args in [
+                vec!["v_fs_sniffer", flag, "^name$", "."],
+                vec!["v_fs_sniffer", assignment.as_str(), "."],
+            ] {
+                let ParsedArgs::Run(cli) = parse(args).unwrap() else {
+                    panic!("expected runnable CLI args");
+                };
+                assert_eq!(cli.mode, expected);
+            }
+            assert!(parse(["v_fs_sniffer", flag]).is_err());
+            for extra in [
+                ["--file", "name"],
+                ["--lines", "1:2"],
+                ["--replace-with", "new"],
+            ] {
+                assert!(parse(["v_fs_sniffer", flag, "^name$", ".", extra[0], extra[1]]).is_err());
+            }
+        }
+        assert!(parse(["v_fs_sniffer", "--file-regex", "a", "--dir-regex", "b", "."]).is_err());
+    }
+
+    #[test]
+    fn old_regex_options_are_rejected() {
+        for flag in ["--regex", "-rx", "--regex=name", "-rx=name"] {
+            let err = parse(["v_fs_sniffer", flag, "name", "."]).unwrap_err();
+            assert!(err.to_string().contains("unknown option"));
+        }
+    }
 
     #[test]
     fn extension_presets_mix_with_literals_and_repeated_flags() {

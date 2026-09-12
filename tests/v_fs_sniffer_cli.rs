@@ -235,7 +235,7 @@ fn extension_presets_exclude_files_in_all_file_search_modes() {
     for (mode, query) in [
         ("--file", "sample"),
         ("--str", "needle"),
-        ("--regex", "needle"),
+        ("--str-regex", "needle"),
     ] {
         let output = run([
             mode,
@@ -285,7 +285,11 @@ fn excludes_compound_extensions_from_names_and_contents() {
         fixture.write(name, "needle\n");
     }
 
-    for (mode, query) in [("--file", "gz"), ("--str", "needle"), ("--regex", "needle")] {
+    for (mode, query) in [
+        ("--file", "gz"),
+        ("--str", "needle"),
+        ("--str-regex", "needle"),
+    ] {
         let output = run([
             mode,
             query,
@@ -342,12 +346,112 @@ fn excludes_compound_extensions_from_names_and_contents() {
 }
 
 #[test]
+fn file_regex_matches_only_names_and_honors_search_options() {
+    let fixture = Fixture::new("file_regex");
+    fixture.write("report1.txt", "unrelated\n");
+    fixture.write("nested/REPORT2.TXT", "unrelated\n");
+    fixture.write("report3.txt/child.bin", "unrelated\n");
+    fixture.write("other.txt", "report4.txt\n");
+    fixture.write(".report5.txt", "unrelated\n");
+    let pattern = r"^report[0-9]+\.txt$";
+    let root = fixture.root.to_str().unwrap();
+    for options in [
+        vec![],
+        vec!["--case-sensitive"],
+        vec!["--no-recursive"],
+        vec!["-ex", "nested"],
+    ] {
+        let mut args = vec!["--file-regex", pattern, root];
+        args.extend_from_slice(&options);
+        let output = run(args);
+        assert_success(&output);
+        let stdout = stdout(&output);
+        assert!(stdout.contains("report1.txt"));
+        assert!(!stdout.contains("report3.txt"));
+        assert!(!stdout.contains("other.txt"));
+        assert!(!stdout.contains(".report5.txt"));
+        assert!(stdout.contains(if options.is_empty() {
+            "Summary: 2 matches"
+        } else {
+            "Summary: 1 matches"
+        }));
+    }
+    let output = run(["--file-regex", pattern, root, "-ee", "txt"]);
+    assert_success(&output);
+    assert!(stdout(&output).contains("Summary: 0 matches"));
+    let file = fixture.root.join("report1.txt");
+    let output = run(["--file-regex", pattern, file.to_str().unwrap(), "--json"]);
+    assert_success(&output);
+    assert!(stdout(&output).contains("\"kind\": \"file\""));
+    assert!(stdout(&output).contains("\"line\": null"));
+}
+
+#[test]
+fn dir_regex_matches_names_including_hidden_directories() {
+    let fixture = Fixture::new("dir_regex");
+    fixture.write(".git/config", "unrelated\n");
+    fixture.write("nested/.GIT/config", "unrelated\n");
+    fixture.write("other/.git", "unrelated\n");
+    fixture.write("text.txt", ".git\n");
+    let root = fixture.root.to_str().unwrap();
+    for (pattern, options, count) in [
+        (r"^\.git$", vec![], 2),
+        (r"^\.git$", vec!["--case-sensitive"], 1),
+        (r"/^\.git$/i", vec!["--case-sensitive"], 2),
+        (r"^\.git$", vec!["--no-recursive"], 1),
+        (r"^\.git$", vec!["-ex", "nested"], 1),
+        (r"^\.git$", vec!["-er", r"/\.git$/i"], 0),
+    ] {
+        let mut args = vec!["--dir-regex", pattern, root];
+        args.extend(options);
+        let output = run(args);
+        assert_success(&output);
+        assert!(stdout(&output).contains(&format!("Summary: {count} matches")));
+        assert!(!stdout(&output).contains("text.txt"));
+    }
+}
+
+#[test]
+fn str_regex_searches_contents_across_roots_without_matching_names() {
+    let first = Fixture::new("str_regex_first");
+    let second = Fixture::new("str_regex_second");
+    first.write("error404.txt", "unrelated\n");
+    first.write("logs/app.log", "header\nERROR: 404\n");
+    second.write("service.log", "error 500\n");
+    let output = run([
+        "--str-regex",
+        "error[ :]+[0-9]+",
+        first.root.to_str().unwrap(),
+        second.root.to_str().unwrap(),
+        "--json",
+    ]);
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(!stdout.contains("error404.txt"));
+    assert!(stdout.contains("app.log"));
+    assert!(stdout.contains("service.log"));
+    assert!(stdout.contains("\"line\": 2"));
+    assert!(stdout.contains("\"column\": 1"));
+    assert_eq!(stdout.matches("\"kind\": \"regex\"").count(), 2);
+}
+
+#[test]
+fn regex_modes_reject_invalid_patterns() {
+    let fixture = Fixture::new("invalid_regex_modes");
+    for flag in ["--file-regex", "--dir-regex", "--str-regex"] {
+        let output = run([flag, "[", fixture.root.to_str().unwrap()]);
+        assert!(!output.status.success());
+        assert!(stderr(&output).contains("regex"));
+    }
+}
+
+#[test]
 fn delimited_regex_flags_are_supported() {
     let fixture = Fixture::new("regex_flags");
     fixture.write("images.txt", "A.png\n7.png\n");
 
     let output = run([
-        "--regex",
+        "--str-regex",
         r"/([^0-9]\.png)+/gim",
         fixture.root.to_str().unwrap(),
     ]);
@@ -636,7 +740,7 @@ fn replace_with_requires_string_mode() {
     fixture.write("service.conf", "needle\n");
 
     let output = run([
-        "--regex",
+        "--str-regex",
         "needle",
         fixture.root.to_str().unwrap(),
         "--replace-with",

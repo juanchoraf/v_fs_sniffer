@@ -27,7 +27,7 @@ Made with AI (Codex) 🤖
 | Finds files by name with case-insensitive matching by default
 | Finds directories by name with recursive traversal
 | Searches literal text inside files
-| Searches file contents with the built-in regex engine
+| Searches file names, directory names, or file contents with separate regex options
 | Searches one or more root paths in a single run
 | Reads an exact line or inclusive line range from one file with `--file <path> --lines <start:end>`
 | Recurses through hidden entries such as `.git` and `.htaccess`
@@ -84,7 +84,7 @@ or from terminal or console:
 
 ```bash
 v_fs_sniffer --str "TODO" . --exclude-dir target
-v_fs_sniffer --regex '/error|warning/i' .
+v_fs_sniffer --str-regex '/error|warning/i' .
 v_fs_sniffer --check-update
 v_fs_sniffer --update
 ```
@@ -142,6 +142,35 @@ Presets match filename suffixes, not file contents or detected types. For exampl
 `VIDEO` also excludes TypeScript `.ts` files, and `DBS` includes `.sql` dumps.
 Use individual extensions when a preset is broader than you need. `BINARIES`
 does not exclude executables without an extension or versioned names like `lib.so.1`.
+
+Choose the regex option for the action you want:
+
+| Option | Searches | Example |
+| --- | --- | --- |
+| `--file-regex` | File names | `v_fs_sniffer --file-regex '\.tar\.gz$' ./versions` |
+| `--dir-regex` | Directory names | `v_fs_sniffer --dir-regex '^\.git$' .` |
+| `--str-regex` | Text inside files, line by line | `v_fs_sniffer --str-regex 'error[ :]+[0-9]+' ./logs` |
+
+All three search recursively by default and accept one or more roots. Name
+patterns apply to the entry's basename, not its full path. Use `^` and `$` to
+require a whole-name match. Name searches report each matching entry once with
+its path and metadata; content searches report each match with its path, line,
+and column. `--no-recursive`, exclusions (including `-ee` presets for files), and
+text/JSON output work with these modes. Directory searches inspect directories
+under each root, as `--dir` does.
+
+For a content search:
+
+```bash
+v_fs_sniffer --str-regex 'error[ :]+[0-9]+' ./logs
+```
+
+This matches `ERROR: 404` and `error 500`: `error` is literal text, `[ :]+`
+matches one or more spaces or colons, and `[0-9]+` matches one or more digits.
+Matching is case-insensitive by default; add `--case-sensitive` to require
+lowercase `error`. The delimited form `/error[ :]+[0-9]+/i` also works and
+explicitly enables case-insensitive matching. Quote patterns so the shell passes
+them unchanged (use double quotes in Windows `cmd.exe`).
 
 ## Requirements
 
@@ -334,7 +363,7 @@ v_fs_sniffer --dir <name> <root> [root ...] [options]
 v_fs_sniffer --dir <name> <root> [root ...] --replace-with <name> [options]
 v_fs_sniffer --str <text> <root> [root ...] [options]
 v_fs_sniffer --str <text> <root> [root ...] --replace-with <text> [options]
-v_fs_sniffer --regex <expr> <root> [root ...] [options]
+v_fs_sniffer --str-regex <expr> <root> [root ...] [options]
 v_fs_sniffer --check-update
 v_fs_sniffer --update
 v_fs_sniffer --uninstall
@@ -353,7 +382,7 @@ Running without arguments opens the interactive terminal. A one-shot command req
 | `--dir <name> --replace-with <name>` | Rename matching directories. |
 | `--str <text>` | Find literal text inside files. |
 | `--str <text> --replace-with <text>` | Replace literal text in UTF-8 files. |
-| `--regex <expr>`, `-rx <expr>` | Find regex matches inside files. |
+| `--str-regex <expr>`, `-rx <expr>` | Find regex matches inside files. |
 
 Matching is case-insensitive and recursive by default. Symlink targets are followed by default. All roots use the same search mode and options. Exact duplicate roots are scanned once after path resolution; overlapping roots can still report the same files more than once. File and directory replacement changes only the entry name, never its parent, and never overwrites a destination. Non-UTF-8 files are skipped with a warning during string replacement.
 
@@ -414,8 +443,8 @@ v_fs_sniffer --file ".rs" . --no-recursive
 v_fs_sniffer --str "needle" . --no-follow-symlinks
 
 # Use regular expressions
-v_fs_sniffer --regex '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' .
-v_fs_sniffer --regex '/error|warning/i' .
+v_fs_sniffer --str-regex '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' .
+v_fs_sniffer --str-regex '/error|warning/i' .
 
 # Exclude content
 v_fs_sniffer --str "needle" . --exclude-dir target --exclude-dir node_modules
