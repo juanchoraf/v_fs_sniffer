@@ -434,7 +434,8 @@ fn excludes_compound_extensions_from_names_and_contents() {
     assert!(!stdout(&output).contains(archive));
     assert!(!stdout(&output).contains("keep.gz"));
     assert!(stdout(&output).contains("keep.tar.gz.bak"));
-    assert!(stdout(&output).contains("| .gz"));
+    // Content searches show "needle" in Found; the hidden name is in Path.
+    assert!(stdout(&output).contains(fixture.root.join(".gz").to_str().unwrap()));
 }
 
 #[test]
@@ -458,7 +459,10 @@ fn file_regex_matches_only_names_and_honors_search_options() {
         let output = run(args);
         assert_success(&output);
         let stdout = stdout(&output);
-        assert!(stdout.contains("report1.txt"));
+        assert!(
+            stdout.contains("report1.txt"),
+            "options {options:?}:\n{stdout}"
+        );
         assert!(!stdout.contains("report3.txt"));
         assert!(!stdout.contains("other.txt"));
         assert!(!stdout.contains(".report5.txt"));
@@ -498,7 +502,11 @@ fn dir_regex_matches_names_including_hidden_directories() {
         args.extend(options);
         let output = run(args);
         assert_success(&output);
-        assert!(stdout(&output).contains(&format!("Summary: {count} matches")));
+        assert!(
+            stdout(&output).contains(&format!("Summary: {count} matches")),
+            "pattern {pattern}:\n{}",
+            stdout(&output)
+        );
         assert!(!stdout(&output).contains("text.txt"));
     }
 }

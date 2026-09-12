@@ -236,6 +236,10 @@ impl SimpleRegex {
 
         for next in self.match_atom_once(atom, text, text_pos) {
             if next == text_pos {
+                // Anchors and empty groups succeed without consuming text.
+                // Further required repetitions can succeed at this same
+                // position; record it without recursing indefinitely.
+                out.push(next);
                 continue;
             }
             self.repeat_atom(atom, quantifier, text, next, count + 1, out);
@@ -672,4 +676,39 @@ fn strip_extended_whitespace(pattern: &str) -> String {
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MatchSpan, RegexOptions, SimpleRegex};
+
+    #[test]
+    fn anchors_match_file_and_directory_names() {
+        for (pattern, matching, nonmatching) in [
+            (r"^report[0-9]+\.txt$", "report1.txt", "prefix_report1.txt"),
+            (r"^\.git$", ".git", ".gitignore"),
+            (r"\.git$", "nested/.git", "nested/.git/config"),
+        ] {
+            let regex = SimpleRegex::compile(pattern, RegexOptions::default()).unwrap();
+            assert!(regex.is_match(matching), "{pattern} must match {matching}");
+            assert!(
+                !regex.is_match(nonmatching),
+                "{pattern} must not match {nonmatching}"
+            );
+        }
+    }
+
+    #[test]
+    fn zero_width_matches_terminate_and_preserve_positions() {
+        for (pattern, text, expected) in [
+            ("^", "abc", vec![MatchSpan { start: 0, end: 0 }]),
+            ("$", "abc", vec![MatchSpan { start: 3, end: 3 }]),
+            ("^$", "", vec![MatchSpan { start: 0, end: 0 }]),
+            ("^()*a$", "a", vec![MatchSpan { start: 0, end: 1 }]),
+            ("^(){2}a$", "a", vec![MatchSpan { start: 0, end: 1 }]),
+        ] {
+            let regex = SimpleRegex::compile(pattern, RegexOptions::default()).unwrap();
+            assert_eq!(regex.find_iter(text), expected, "{pattern}");
+        }
+    }
 }
