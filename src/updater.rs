@@ -9,7 +9,7 @@ use v_concat::*;
 
 const APP_NAME: &str = "v_fs_sniffer";
 const GITHUB_API_BASE: &str = "https://api.github.com/repos";
-const UPDATE_REPOSITORY: &str = "juanchoraf/v_executable";
+const UPDATE_REPOSITORY: &str = "juanchoraf/v_fs_sniffer";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GitHubRelease {
@@ -550,7 +550,8 @@ fn download_text(url: &str) -> Result<String, VFsSnifferError> {
 
     #[cfg(not(windows))]
     {
-        if let Ok(output) = Command::new("curl")
+        let mut failures = Vec::new();
+        match Command::new("curl")
             .args([
                 "-fsSL",
                 "-H",
@@ -561,20 +562,34 @@ fn download_text(url: &str) -> Result<String, VFsSnifferError> {
             ])
             .output()
         {
-            if output.status.success() {
+            Ok(output) if output.status.success() => {
                 return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
             }
+            Ok(output) => failures.push(v_concat!(
+                "curl exited with {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
+            Err(err) => failures.push(v_concat!("could not run curl: {}", err)),
         }
 
-        if let Ok(output) = Command::new("fetch").args(["-qo", "-", url]).output() {
-            if output.status.success() {
+        match Command::new("fetch").args(["-o", "-", url]).output() {
+            Ok(output) if output.status.success() => {
                 return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
             }
+            Ok(output) => failures.push(v_concat!(
+                "fetch exited with {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            )),
+            Err(err) => failures.push(v_concat!("could not run fetch: {}", err)),
         }
 
-        Err(VFsSnifferError::new(
-            "failed to download release metadata; install curl or fetch and verify network access",
-        ))
+        Err(VFsSnifferError::new(v_concat!(
+            "failed to download release metadata from {}\n{}",
+            url,
+            failures.join("\n")
+        )))
     }
 }
 

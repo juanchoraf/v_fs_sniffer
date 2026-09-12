@@ -333,6 +333,8 @@ v_fs_sniffer --help
 
 ## Update app
 
+Updates use the fixed GitHub repository `juanchoraf/v_fs_sniffer`. Command-line options and environment variables cannot override it.
+
 Install the newer package over the older one. Do not uninstall first. Published release builds can fetch the newest release:
 
 ```bash
