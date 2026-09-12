@@ -52,11 +52,6 @@ pub struct LineReadCli {
     pub quiet: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateCli {
-    pub github_repo: Option<String>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateMode {
     Check,
@@ -67,8 +62,8 @@ pub enum UpdateMode {
 pub enum ParsedArgs {
     Run(Cli),
     ReadLines(LineReadCli),
-    CheckUpdate(UpdateCli),
-    Update(UpdateCli),
+    CheckUpdate,
+    Update,
     Help(String),
     Interactive,
     Uninstall,
@@ -128,7 +123,6 @@ struct CliBuilder {
     output_format: Option<OutputFormat>,
     quiet: bool,
     update_mode: Option<UpdateMode>,
-    github_repo: Option<String>,
     exclude_dirs: Vec<String>,
     exclude_files: Vec<String>,
     exclude_extensions: Vec<String>,
@@ -163,7 +157,6 @@ where
             "--uninstall" => return Ok(ParsedArgs::Uninstall),
             "--check-update" => set_update_mode(&mut builder, UpdateMode::Check)?,
             "--update" => set_update_mode(&mut builder, UpdateMode::Install)?,
-            "--github-repo" => set_github_repo(&mut builder, next_value(&mut args, &arg)?)?,
             "-V" | "--version" => return Ok(ParsedArgs::Version(version_text())),
             "--file" => set_mode(&mut builder, SearchMode::File(next_value(&mut args, &arg)?))?,
             "--dir" => set_mode(&mut builder, SearchMode::Dir(next_value(&mut args, &arg)?))?,
@@ -239,7 +232,6 @@ where
                             }
                             set_update_mode(&mut builder, UpdateMode::Install)?
                         }
-                        "--github-repo" => set_github_repo(&mut builder, value.to_owned())?,
                         "--file-regex" => {
                             set_mode(&mut builder, SearchMode::FileRegex(value.to_owned()))?
                         }
@@ -289,12 +281,9 @@ where
             ));
         }
 
-        let cli = UpdateCli {
-            github_repo: builder.github_repo,
-        };
         return Ok(match update_mode {
-            UpdateMode::Check => ParsedArgs::CheckUpdate(cli),
-            UpdateMode::Install => ParsedArgs::Update(cli),
+            UpdateMode::Check => ParsedArgs::CheckUpdate,
+            UpdateMode::Install => ParsedArgs::Update,
         });
     }
 
@@ -455,39 +444,6 @@ fn set_update_mode(builder: &mut CliBuilder, value: UpdateMode) -> Result<(), VF
     Ok(())
 }
 
-fn set_github_repo(builder: &mut CliBuilder, value: String) -> Result<(), VFsSnifferError> {
-    if builder.github_repo.is_some() {
-        return Err(VFsSnifferError::new(
-            "only one --github-repo option is allowed per run",
-        ));
-    }
-    if !is_valid_github_repo(&value) {
-        return Err(VFsSnifferError::new(format!(
-            "invalid GitHub repository '{value}', expected owner/repo"
-        )));
-    }
-
-    builder.github_repo = Some(value);
-    Ok(())
-}
-
-fn is_valid_github_repo(value: &str) -> bool {
-    let mut parts = value.split('/');
-    let Some(owner) = parts.next() else {
-        return false;
-    };
-    let Some(repo) = parts.next() else {
-        return false;
-    };
-
-    !owner.is_empty()
-        && !repo.is_empty()
-        && parts.next().is_none()
-        && value
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/'))
-}
-
 fn builder_has_search_input(builder: &CliBuilder) -> bool {
     builder.mode.is_some()
         || !builder.roots.is_empty()
@@ -589,8 +545,8 @@ USAGE:
   v_fs_sniffer --file-regex <expr> <root> [root ...] [options]
   v_fs_sniffer --dir-regex <expr> <root> [root ...] [options]
   v_fs_sniffer --str-regex <expr> <root> [root ...] [options]
-  v_fs_sniffer --check-update [--github-repo owner/repo]
-  v_fs_sniffer --update [--github-repo owner/repo]
+  v_fs_sniffer --check-update
+  v_fs_sniffer --update
   v_fs_sniffer --uninstall
 
 ROOTS:
@@ -629,7 +585,6 @@ OPTIONS:
   -q, --quiet               Do not print findings to stdout
   --check-update            Check GitHub Releases for a newer version
   --update                  Download and run the latest matching GitHub release
-  --github-repo <owner/repo> Override the embedded GitHub repository
   --uninstall               Remove the Cargo-installed binary; source files are untouched
   -V, --version             Print the full app version
 
@@ -778,19 +733,32 @@ mod tests {
     fn check_update_is_not_a_parse_error() {
         assert!(matches!(
             parse(["v_fs_sniffer", "--check-update"]).unwrap(),
-            ParsedArgs::CheckUpdate(_)
+            ParsedArgs::CheckUpdate
         ));
     }
 
     #[test]
-    fn update_accepts_github_repo_override() {
-        let ParsedArgs::Update(cli) =
-            parse(["v_fs_sniffer", "--update", "--github-repo", "owner/repo"]).unwrap()
-        else {
-            panic!("expected update CLI args");
-        };
+    fn update_is_not_a_parse_error() {
+        assert!(matches!(
+            parse(["v_fs_sniffer", "--update"]).unwrap(),
+            ParsedArgs::Update
+        ));
+    }
 
-        assert_eq!(cli.github_repo.as_deref(), Some("owner/repo"));
+    #[test]
+    fn update_rejects_github_repo_override() {
+        for mode in ["--update", "--check-update"] {
+            for args in [
+                vec!["v_fs_sniffer", mode, "--github-repo", "owner/repo"],
+                vec!["v_fs_sniffer", "--github-repo", "owner/repo", mode],
+                vec!["v_fs_sniffer", mode, "--github-repo=owner/repo"],
+                vec!["v_fs_sniffer", "--github-repo=owner/repo", mode],
+            ] {
+                let err = parse(args).unwrap_err();
+                assert!(err.to_string().starts_with("unknown option '--github-repo"));
+            }
+        }
+        assert!(!super::usage().contains("--github-repo"));
     }
 
     #[test]

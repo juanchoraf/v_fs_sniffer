@@ -13,7 +13,7 @@ use std::io::{self, BufRead, BufReader, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use args::{Cli, LineRange, LineReadCli, OutputFormat, ParsedArgs, UpdateCli};
+use args::{Cli, LineRange, LineReadCli, OutputFormat, ParsedArgs};
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -62,7 +62,6 @@ const INTERACTIVE_COMMANDS: &[&str] = &[
     "--lines",
     "--check-update",
     "--update",
-    "--github-repo",
     "--no-recursive",
     "-nr",
     "--case-sensitive",
@@ -166,8 +165,8 @@ fn run_from_env() -> Result<Option<RunOutput>, VFsSnifferError> {
             result.map(Some)
         }
         ParsedArgs::ReadLines(cli) => run_line_read(cli).map(Some),
-        ParsedArgs::CheckUpdate(cli) => check_update(cli).map(Some),
-        ParsedArgs::Update(cli) => install_update(cli).map(Some),
+        ParsedArgs::CheckUpdate => check_update().map(Some),
+        ParsedArgs::Update => install_update().map(Some),
         ParsedArgs::Uninstall => {
             uninstall()?;
             Ok(None)
@@ -233,8 +232,8 @@ fn run_line_read(cli: LineReadCli) -> Result<RunOutput, VFsSnifferError> {
     })
 }
 
-fn check_update(cli: UpdateCli) -> Result<RunOutput, VFsSnifferError> {
-    let stdout = updater::check_update(cli.github_repo.as_deref())?;
+fn check_update() -> Result<RunOutput, VFsSnifferError> {
+    let stdout = updater::check_update()?;
 
     Ok(RunOutput {
         report: None,
@@ -243,8 +242,8 @@ fn check_update(cli: UpdateCli) -> Result<RunOutput, VFsSnifferError> {
     })
 }
 
-fn install_update(cli: UpdateCli) -> Result<RunOutput, VFsSnifferError> {
-    let stdout = updater::install_update(cli.github_repo.as_deref())?;
+fn install_update() -> Result<RunOutput, VFsSnifferError> {
+    let stdout = updater::install_update()?;
 
     Ok(RunOutput {
         report: None,
@@ -592,7 +591,7 @@ fn run_interactive_line(trimmed: &str) -> Result<bool, VFsSnifferError> {
         return Ok(true);
     }
     if trimmed.eq_ignore_ascii_case("check-update") {
-        match check_update(UpdateCli { github_repo: None }) {
+        match check_update() {
             Ok(output) => {
                 if !output.stdout.is_empty() {
                     print_results(&output.stdout);
@@ -603,7 +602,7 @@ fn run_interactive_line(trimmed: &str) -> Result<bool, VFsSnifferError> {
         return Ok(true);
     }
     if trimmed.eq_ignore_ascii_case("update") {
-        match install_update(UpdateCli { github_repo: None }) {
+        match install_update() {
             Ok(output) => {
                 if !output.stdout.is_empty() {
                     print_results(&output.stdout);
@@ -655,7 +654,7 @@ fn run_interactive_line(trimmed: &str) -> Result<bool, VFsSnifferError> {
             }
             Err(err) => print_error(&err.to_string()),
         },
-        Ok(ParsedArgs::CheckUpdate(cli)) => match check_update(cli) {
+        Ok(ParsedArgs::CheckUpdate) => match check_update() {
             Ok(output) => {
                 if !output.stdout.is_empty() {
                     print_results(&output.stdout);
@@ -663,7 +662,7 @@ fn run_interactive_line(trimmed: &str) -> Result<bool, VFsSnifferError> {
             }
             Err(err) => print_error(&err.to_string()),
         },
-        Ok(ParsedArgs::Update(cli)) => match install_update(cli) {
+        Ok(ParsedArgs::Update) => match install_update() {
             Ok(output) => {
                 if !output.stdout.is_empty() {
                     print_results(&output.stdout);

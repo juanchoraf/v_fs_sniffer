@@ -17,7 +17,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  V_FS_SNIFFER_GITHUB_REPO: ${{ github.repository }}
 
 jobs:
   build:

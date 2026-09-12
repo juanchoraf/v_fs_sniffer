@@ -9,8 +9,7 @@ use v_concat::*;
 
 const APP_NAME: &str = "v_fs_sniffer";
 const GITHUB_API_BASE: &str = "https://api.github.com/repos";
-const BUILD_GITHUB_REPO: Option<&str> = option_env!("V_FS_SNIFFER_GITHUB_REPO");
-const CARGO_REPOSITORY: Option<&str> = option_env!("CARGO_PKG_REPOSITORY");
+const UPDATE_REPOSITORY: &str = "juanchoraf/v_executable";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GitHubRelease {
@@ -24,9 +23,8 @@ struct GitHubAsset {
     download_url: String,
 }
 
-pub fn check_update(repo_override: Option<&str>) -> Result<String, VFsSnifferError> {
-    let repo = resolve_github_repo(repo_override)?;
-    let release = fetch_latest_release(&repo)?;
+pub fn check_update() -> Result<String, VFsSnifferError> {
+    let release = fetch_latest_release()?;
     let latest_version = normalize_version(&release.tag_name);
     let current_version = env!("CARGO_PKG_VERSION");
     let candidates = compatible_asset_names(latest_version);
@@ -61,15 +59,14 @@ pub fn check_update(repo_override: Option<&str>) -> Result<String, VFsSnifferErr
     Ok(v_concat!(
         "{}\nRepository: {}\nLatest tag: {}\n{}\n",
         status,
-        repo,
+        UPDATE_REPOSITORY,
         release.tag_name,
         asset_line
     ))
 }
 
-pub fn install_update(repo_override: Option<&str>) -> Result<String, VFsSnifferError> {
-    let repo = resolve_github_repo(repo_override)?;
-    let release = fetch_latest_release(&repo)?;
+pub fn install_update() -> Result<String, VFsSnifferError> {
+    let release = fetch_latest_release()?;
     let latest_version = normalize_version(&release.tag_name);
     let current_version = env!("CARGO_PKG_VERSION");
 
@@ -116,88 +113,8 @@ pub fn install_update(repo_override: Option<&str>) -> Result<String, VFsSnifferE
     ))
 }
 
-fn resolve_github_repo(repo_override: Option<&str>) -> Result<String, VFsSnifferError> {
-    if let Some(repo) = repo_override.and_then(non_empty_trimmed) {
-        return validate_repo(repo);
-    }
-
-    if let Ok(repo) = env::var("V_FS_SNIFFER_GITHUB_REPO") {
-        if let Some(repo) = non_empty_trimmed(&repo) {
-            return validate_repo(repo);
-        }
-    }
-
-    if let Some(repo) = BUILD_GITHUB_REPO.and_then(non_empty_trimmed) {
-        return validate_repo(repo);
-    }
-
-    if let Some(repo) = CARGO_REPOSITORY
-        .and_then(non_empty_trimmed)
-        .and_then(github_repo_from_url)
-    {
-        return validate_repo(&repo);
-    }
-
-    Err(VFsSnifferError::new(
-        "GitHub repository is not configured. Rebuild releases with V_FS_SNIFFER_GITHUB_REPO=owner/repo or pass --github-repo owner/repo.",
-    ))
-}
-
-fn non_empty_trimmed(value: &str) -> Option<&str> {
-    let value = value.trim();
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
-fn validate_repo(repo: &str) -> Result<String, VFsSnifferError> {
-    let mut parts = repo.split('/');
-    let Some(owner) = parts.next() else {
-        return invalid_repo(repo);
-    };
-    let Some(name) = parts.next() else {
-        return invalid_repo(repo);
-    };
-    if parts.next().is_some() || owner.is_empty() || name.is_empty() {
-        return invalid_repo(repo);
-    }
-    if !repo
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/'))
-    {
-        return invalid_repo(repo);
-    }
-
-    Ok(repo.to_owned())
-}
-
-fn invalid_repo(repo: &str) -> Result<String, VFsSnifferError> {
-    Err(VFsSnifferError::new(v_concat!(
-        "invalid GitHub repository '{}', expected owner/repo",
-        repo
-    )))
-}
-
-fn github_repo_from_url(url: &str) -> Option<String> {
-    let url = url.trim().trim_end_matches(".git");
-    let path = url
-        .strip_prefix("https://github.com/")
-        .or_else(|| url.strip_prefix("http://github.com/"))
-        .or_else(|| url.strip_prefix("git@github.com:"))?;
-    let mut parts = path.split('/');
-    let owner = parts.next()?;
-    let repo = parts.next()?;
-    if parts.next().is_some() || owner.is_empty() || repo.is_empty() {
-        return None;
-    }
-
-    Some(v_concat!("{}/{}", owner, repo))
-}
-
-fn fetch_latest_release(repo: &str) -> Result<GitHubRelease, VFsSnifferError> {
-    let url = v_concat!("{}/{}/releases/latest", GITHUB_API_BASE, repo);
+fn fetch_latest_release() -> Result<GitHubRelease, VFsSnifferError> {
+    let url = v_concat!("{}/{}/releases/latest", GITHUB_API_BASE, UPDATE_REPOSITORY);
     let body = download_text(&url)?;
     let tag_name = json_string_field(&body, "tag_name").ok_or_else(|| {
         VFsSnifferError::new("GitHub latest release response did not include tag_name")
@@ -898,22 +815,8 @@ fn parse_json_string(value: &str) -> Option<(String, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        checksum_name_for, compare_versions, expected_checksum, github_repo_from_url, parse_assets,
-    };
+    use super::{checksum_name_for, compare_versions, expected_checksum, parse_assets};
     use std::cmp::Ordering;
-
-    #[test]
-    fn parses_github_repository_urls() {
-        assert_eq!(
-            github_repo_from_url("https://github.com/owner/repo.git").as_deref(),
-            Some("owner/repo")
-        );
-        assert_eq!(
-            github_repo_from_url("git@github.com:owner/repo").as_deref(),
-            Some("owner/repo")
-        );
-    }
 
     #[test]
     fn version_comparison_uses_numeric_parts() {
