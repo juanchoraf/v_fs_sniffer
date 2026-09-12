@@ -575,7 +575,7 @@ EXCLUSIONS:
   -ex, --exclude-dir <path-or-name>      Exclude a directory subtree
   -ed, --exclude-dir <path-or-name>      Same as above
   -ef, --exclude-file <path-or-name>     Exclude matching files
-  -ee, --exclude-extensions <exts>       Exclude comma/space-separated file extensions
+  -ee, --exclude-extensions <exts>       Exclude comma or space separated file extensions. Written with or without a leading dot.
   -el, --exclude-line <text>             Exclude content lines containing text
   -er, --exclude-regex <expr>            Exclude paths or content lines matching regex
 "#;

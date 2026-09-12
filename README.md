@@ -41,7 +41,7 @@ Made with AI (Codex) 🤖
 | Skips non-UTF-8 files safely during text replacement and reports warnings
 | Excludes directory subtrees by path or name
 | Excludes files by path or name
-| Excludes file extensions from content scans
+| Excludes file extensions from filename searches and content scans
 | Excludes content lines containing specific text
 | Excludes paths or content lines with regex rules
 | Prints aligned text tables with match metadata

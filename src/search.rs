@@ -747,15 +747,23 @@ impl ExtensionPattern {
     }
 
     fn matches_path(&self, path: &Path) -> bool {
-        let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
             return false;
         };
 
-        if self.case_sensitive {
-            extension == self.normalized
+        let folded;
+        let name = if self.case_sensitive {
+            name
         } else {
-            extension.to_lowercase() == self.normalized
-        }
+            folded = name.to_lowercase();
+            &folded
+        };
+
+        // Check each dot boundary so both `gz` and `tar.gz` match an archive.
+        // A leading dot alone marks a hidden filename, not an extension.
+        name.char_indices()
+            .skip(1)
+            .any(|(index, ch)| ch == '.' && name[index + 1..] == self.normalized)
     }
 }
 

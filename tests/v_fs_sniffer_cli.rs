@@ -223,6 +223,85 @@ fn excludes_multiple_extensions_from_one_flag() {
 }
 
 #[test]
+fn excludes_compound_extensions_from_names_and_contents() {
+    let fixture = Fixture::new("compound_extensions");
+    let archive = "v_color_picker_v0.1.2_linux_x86_64.tar.gz";
+    for name in [
+        archive,
+        "nested/archive.TAR.GZ",
+        "archive.bin",
+        "archive.deb",
+        "archive.zip",
+    ] {
+        fixture.write(name, "needle\n");
+    }
+    for name in [
+        "keep.gz",
+        "keep.tar.gz.bak",
+        "keep.notar.gz",
+        "keep.txt",
+        ".gz",
+    ] {
+        fixture.write(name, "needle\n");
+    }
+
+    for (mode, query) in [("--file", "gz"), ("--str", "needle"), ("--regex", "needle")] {
+        let output = run([
+            mode,
+            query,
+            fixture.root.to_str().unwrap(),
+            "-ee",
+            ".bin, .deb, .zip, .tar.gz",
+        ]);
+        assert_success(&output);
+        let stdout = stdout(&output);
+        assert!(!stdout.contains(archive));
+        assert!(!stdout.contains("archive.TAR.GZ"));
+        assert!(!stdout.contains("archive.bin"));
+        assert!(!stdout.contains("archive.deb"));
+        assert!(!stdout.contains("archive.zip"));
+        assert!(stdout.contains("keep.gz"));
+        assert!(stdout.contains("keep.tar.gz.bak"));
+        assert!(stdout.contains("keep.notar.gz"));
+    }
+
+    let output = run([
+        "--file",
+        archive,
+        fixture.root.to_str().unwrap(),
+        "-ee",
+        ".bin, .deb, .zip, .tar.gz",
+    ]);
+    assert_success(&output);
+    assert!(stdout(&output).contains("Summary: 0 matches"));
+
+    let output = run([
+        "--str",
+        "needle",
+        fixture.root.to_str().unwrap(),
+        "-ee",
+        "tar.gz",
+        "--case-sensitive",
+    ]);
+    assert_success(&output);
+    assert!(!stdout(&output).contains(archive));
+    assert!(stdout(&output).contains("archive.TAR.GZ"));
+
+    let output = run([
+        "--str",
+        "needle",
+        fixture.root.to_str().unwrap(),
+        "-ee",
+        "gz",
+    ]);
+    assert_success(&output);
+    assert!(!stdout(&output).contains(archive));
+    assert!(!stdout(&output).contains("keep.gz"));
+    assert!(stdout(&output).contains("keep.tar.gz.bak"));
+    assert!(stdout(&output).contains("| .gz"));
+}
+
+#[test]
 fn delimited_regex_flags_are_supported() {
     let fixture = Fixture::new("regex_flags");
     fixture.write("images.txt", "A.png\n7.png\n");
