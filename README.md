@@ -62,7 +62,6 @@ Made with AI (Codex) 🤖
 | Supports `help`, `clear`, `version`, `check-update`, `update`, `exit`, and `quit` inside the interactive terminal
 | Checks for published updates with `--check-update`
 | Downloads, verifies, and installs matching published updates with `--update`
-| Supports per-user Cargo uninstall with `--uninstall`
 | Builds portable archives and installers for 64-bit systems
 | Supports Windows, Linux, macOS, BSD, illumos/Solaris, and other Unix-like systems
 
@@ -333,8 +332,6 @@ v_fs_sniffer --help
 
 ## Update app
 
-Updates use the fixed GitHub repository `juanchoraf/v_fs_sniffer`. Command-line options and environment variables cannot override it.
-
 Install the newer package over the older one. Do not uninstall first. Published release builds can fetch the newest release:
 
 ```bash
@@ -370,7 +367,7 @@ Ensure Cargo's bin directory is on `PATH`, then run `v_fs_sniffer --help`.
 | --- | --- |
 | Windows installer | `winget uninstall v_fs_sniffer`, Windows Settings, or the installer's Remove option |
 | Debian/Ubuntu package | `sudo apt remove v-fs-sniffer` |
-| Cargo per-user install | `cargo uninstall v_fs_sniffer` or `v_fs_sniffer --uninstall` |
+| Cargo per-user install | `cargo uninstall v_fs_sniffer` |
 | Portable Unix binary | `sudo rm -f /usr/local/bin/v_fs_sniffer` |
 
 For a macOS package installation:
@@ -396,7 +393,6 @@ v_fs_sniffer --str <text> <root> [root ...] --replace-with <text> [options]
 v_fs_sniffer --str-regex <expr> <root> [root ...] [options]
 v_fs_sniffer --check-update
 v_fs_sniffer --update
-v_fs_sniffer --uninstall
 ```
 
 Running without arguments opens the interactive terminal. A one-shot command requires exactly one search mode and at least one search root.
@@ -431,7 +427,6 @@ Matching is case-insensitive and recursive by default. Symlink targets are follo
 | `-q`, `--quiet` | Suppress findings on stdout. |
 | `--check-update` | Check for a newer published version and matching asset. |
 | `--update` | Download, verify, and install the latest matching published asset. |
-| `--uninstall` | Remove the current user's Cargo installation. |
 | `-h`, `--help` | Print help. |
 | `-V`, `--version` | Print the version. |
 

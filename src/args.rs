@@ -66,7 +66,6 @@ pub enum ParsedArgs {
     Update,
     Help(String),
     Interactive,
-    Uninstall,
     Version(String),
 }
 
@@ -154,7 +153,6 @@ where
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "-h" | "--help" => return Ok(ParsedArgs::Help(usage())),
-            "--uninstall" => return Ok(ParsedArgs::Uninstall),
             "--check-update" => set_update_mode(&mut builder, UpdateMode::Check)?,
             "--update" => set_update_mode(&mut builder, UpdateMode::Install)?,
             "-V" | "--version" => return Ok(ParsedArgs::Version(version_text())),
@@ -547,7 +545,6 @@ USAGE:
   v_fs_sniffer --str-regex <expr> <root> [root ...] [options]
   v_fs_sniffer --check-update
   v_fs_sniffer --update
-  v_fs_sniffer --uninstall
 
 ROOTS:
   Quote root patterns to let the app expand '*' within file/directory names.
@@ -585,7 +582,6 @@ OPTIONS:
   -q, --quiet               Do not print findings to stdout
   --check-update            Check GitHub Releases for a newer version
   --update                  Download and run the latest matching GitHub release
-  --uninstall               Remove the Cargo-installed binary; source files are untouched
   -V, --version             Print the full app version
 
 EXCLUSIONS:
@@ -722,11 +718,12 @@ mod tests {
     }
 
     #[test]
-    fn uninstall_is_not_a_parse_error() {
-        assert!(matches!(
-            parse(["v_fs_sniffer", "--uninstall"]).unwrap(),
-            ParsedArgs::Uninstall
-        ));
+    fn uninstall_is_an_unknown_option() {
+        for option in ["--uninstall", "--uninstall=true"] {
+            let err = parse(["v_fs_sniffer", option]).unwrap_err();
+            assert_eq!(err.to_string(), format!("unknown option '{option}'"));
+        }
+        assert!(!super::usage().contains("--uninstall"));
     }
 
     #[test]

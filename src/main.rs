@@ -11,7 +11,6 @@ use std::fmt;
 use std::fs;
 use std::io::{self, BufRead, BufReader, IsTerminal, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use args::{Cli, LineRange, LineReadCli, OutputFormat, ParsedArgs};
 use rustyline::completion::{Completer, Pair};
@@ -167,10 +166,6 @@ fn run_from_env() -> Result<Option<RunOutput>, VFsSnifferError> {
         ParsedArgs::ReadLines(cli) => run_line_read(cli).map(Some),
         ParsedArgs::CheckUpdate => check_update().map(Some),
         ParsedArgs::Update => install_update().map(Some),
-        ParsedArgs::Uninstall => {
-            uninstall()?;
-            Ok(None)
-        }
         ParsedArgs::Interactive => {
             interactive_shell()?;
             Ok(None)
@@ -673,11 +668,6 @@ fn run_interactive_line(trimmed: &str) -> Result<bool, VFsSnifferError> {
         Ok(ParsedArgs::Help(text) | ParsedArgs::Version(text)) => {
             v_concat_println!("\n{}", text);
         }
-        Ok(ParsedArgs::Uninstall) => {
-            if let Err(err) = uninstall() {
-                print_error(&err.to_string());
-            }
-        }
         Ok(ParsedArgs::Interactive) => {}
         Err(err) => print_error(&err.to_string()),
     }
@@ -1000,67 +990,6 @@ fn quote_path_completion(path: &str, quote: Option<char>) -> String {
     }
 
     path.to_owned()
-}
-
-fn uninstall() -> Result<(), VFsSnifferError> {
-    v_concat_println!(
-        "\n{}\n{}\n{}\n{}",
-        "Uninstalling v_fs_sniffer with Cargo.",
-        "This removes a per-user Cargo install and its Cargo install metadata only.",
-        "For system-wide packages, uninstall with your OS package manager.",
-        "The source checkout is not modified."
-    );
-
-    uninstall_current_package()
-}
-
-#[cfg(not(windows))]
-fn uninstall_current_package() -> Result<(), VFsSnifferError> {
-    let status = Command::new("cargo")
-        .args(["uninstall", "v_fs_sniffer"])
-        .status()
-        .map_err(|err| VFsSnifferError::new(format!("failed to run 'cargo uninstall': {err}")))?;
-
-    if status.success() {
-        Ok(())
-    } else {
-        Err(VFsSnifferError::new(format!(
-            "'cargo uninstall v_fs_sniffer' exited with status {status}"
-        )))
-    }
-}
-
-#[cfg(windows)]
-fn uninstall_current_package() -> Result<(), VFsSnifferError> {
-    let script = env::temp_dir().join(format!("v_fs_sniffer_uninstall_{}.cmd", std::process::id()));
-    let script_body = format!(
-        "@echo off\r\n\
-         timeout /t 1 /nobreak >nul\r\n\
-         cargo uninstall v_fs_sniffer\r\n\
-         set exit_code=%ERRORLEVEL%\r\n\
-         del \"{}\" >nul 2>nul\r\n\
-         exit /b %exit_code%\r\n",
-        script.display()
-    );
-
-    fs::write(&script, script_body).map_err(|err| {
-        VFsSnifferError::new(format!(
-            "failed to create uninstall script '{}': {err}",
-            script.display()
-        ))
-    })?;
-
-    let script_command = format!("\"{}\"", script.display());
-    Command::new("cmd")
-        .args(["/C", &script_command])
-        .spawn()
-        .map_err(|err| VFsSnifferError::new(format!("failed to start uninstall script: {err}")))?;
-
-    v_concat_println!(
-        "\n{}",
-        "The uninstall command has been started and will run after this process exits."
-    );
-    Ok(())
 }
 
 #[cfg(windows)]
